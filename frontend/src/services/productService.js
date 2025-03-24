@@ -48,6 +48,21 @@ export const getProductDetails = async (id) => {
       throw new Error("Product ID is required");
     }
 
+    // Always return a template object for "new" ID
+    if (id === "new") {
+      console.log("Creating new product, returning empty template");
+      return {
+        _id: "new",
+        name: "",
+        price: 0,
+        brand: "",
+        category: "",
+        countInStock: 0,
+        description: "",
+        images: [],
+      };
+    }
+
     const response = await axios.get(`/api/products/${id}`);
     console.log(`Product details API response:`, response);
 
@@ -76,6 +91,20 @@ export const getProductDetails = async (id) => {
     return response.data;
   } catch (error) {
     console.error("Error fetching product details:", error);
+
+    // Handle special case for "new" id to avoid error
+    if (id === "new") {
+      return {
+        _id: "new",
+        name: "",
+        price: 0,
+        brand: "",
+        category: "",
+        countInStock: 0,
+        description: "",
+        images: [],
+      };
+    }
 
     // Provide more descriptive error messages based on the HTTP status
     if (error.response) {
@@ -233,6 +262,23 @@ export const deleteProduct = async (id, token) => {
 // Function to create a product
 export const createProduct = async (productData, token) => {
   try {
+    // Ensure token is available
+    if (!token) {
+      const userJSON = localStorage.getItem("user");
+      if (userJSON) {
+        try {
+          const user = JSON.parse(userJSON);
+          token = user.token;
+        } catch (e) {
+          console.error("Error parsing user JSON:", e);
+        }
+      }
+
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+    }
+
     const config = {
       headers: {
         "Content-Type": "application/json",
@@ -240,22 +286,31 @@ export const createProduct = async (productData, token) => {
       },
     };
 
-    // Make sure required fields are included
+    // Deep clone the product data to avoid modifying the original
+    const productToCreate = JSON.parse(JSON.stringify(productData));
+
+    // Always remove the _id field for new products
+    if (productToCreate._id) {
+      delete productToCreate._id;
+    }
+
+    // Make sure all required fields are included with their default values
     const newProduct = {
-      name: productData.name || "New Product",
-      brand: productData.brand || "Brand",
-      category: productData.category || "Category",
-      description: productData.description || "Description",
-      price: productData.price || 0,
-      countInStock: productData.countInStock || 0,
-      image:
-        productData.image || "https://placehold.co/600x400?text=Product+Image",
-      ...productData, // Include any other fields
+      name: productToCreate.name || "New Product",
+      brand: productToCreate.brand || "Brand",
+      category: productToCreate.category || "Category",
+      description: productToCreate.description || "Description",
+      price: Number(productToCreate.price || 0),
+      countInStock: Number(productToCreate.countInStock || 0),
+      images: productToCreate.images || [],
     };
 
+    console.log("Creating product with data:", newProduct);
     const { data } = await axios.post("/api/products", newProduct, config);
+    console.log("Product created:", data);
     return data;
   } catch (error) {
+    console.error("Create product error:", error);
     throw new Error(error.response?.data?.message || error.message);
   }
 };
@@ -263,6 +318,23 @@ export const createProduct = async (productData, token) => {
 // Function to update a product
 export const updateProduct = async (product, token) => {
   try {
+    // Ensure token is available
+    if (!token) {
+      const userJSON = localStorage.getItem("user");
+      if (userJSON) {
+        try {
+          const user = JSON.parse(userJSON);
+          token = user.token;
+        } catch (e) {
+          console.error("Error parsing user JSON:", e);
+        }
+      }
+
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+    }
+
     const config = {
       headers: {
         "Content-Type": "application/json",
@@ -270,13 +342,28 @@ export const updateProduct = async (product, token) => {
       },
     };
 
+    // Ensure the product has a valid ID
+    if (!product._id || product._id === "new") {
+      throw new Error("Product ID is required for updates");
+    }
+
+    // Create a clean copy of the product data
+    const productToUpdate = { ...product };
+
+    // Ensure numeric fields are properly formatted
+    productToUpdate.price = Number(productToUpdate.price || 0);
+    productToUpdate.countInStock = Number(productToUpdate.countInStock || 0);
+
+    console.log("Updating product with data:", productToUpdate);
     const { data } = await axios.put(
-      `/api/products/${product._id}`,
-      product,
+      `/api/products/${productToUpdate._id}`,
+      productToUpdate,
       config
     );
+    console.log("Product updated:", data);
     return data;
   } catch (error) {
+    console.error("Update product error:", error);
     throw new Error(error.response?.data?.message || error.message);
   }
 };

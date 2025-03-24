@@ -1,21 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FiEdit, FiTrash, FiPlus, FiAlertCircle } from "react-icons/fi";
+import {
+  FiEdit,
+  FiTrash,
+  FiPlus,
+  FiAlertCircle,
+  FiUpload,
+} from "react-icons/fi";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import {
-  getCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from "../../services/categoryService";
+import categoryService from "../../services/categoryService";
 import { Button } from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
 import { useAuth } from "../../hooks/useAuth";
+import axios from "axios";
 
 const CategoryList = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,6 +26,8 @@ const CategoryList = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [previewImage, setPreviewImage] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -41,17 +46,34 @@ const CategoryList = () => {
       toast.error("You don't have permission to access this page");
       navigate("/");
     }
+
+    // Debug auth state
+    console.log("Auth state:", { isAuthenticated, user });
+
+    // Store token in localStorage for categoryService to access
+    if (user && user.token) {
+      localStorage.setItem("user", JSON.stringify(user));
+    }
   }, [isAuthenticated, user, navigate]);
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  useEffect(() => {
+    // Set preview image when form data changes
+    if (formData.image) {
+      setPreviewImage(formData.image);
+    } else {
+      setPreviewImage("");
+    }
+  }, [formData.image]);
+
   const fetchCategories = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCategories();
+      const data = await categoryService.getCategories();
       setCategories(data);
     } catch (err) {
       setError(err.message || "Failed to load categories");
@@ -68,6 +90,58 @@ const CategoryList = () => {
     });
   };
 
+  const uploadFileHandler = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileFormData = new FormData();
+    fileFormData.append("image", file);
+
+    try {
+      setUploadLoading(true);
+
+      // Get auth token for upload
+      const token = user?.token;
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const config = {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
+        },
+      };
+
+      const { data } = await axios.post("/api/upload", fileFormData, config);
+
+      if (data.success) {
+        setFormData((prev) => ({
+          ...prev,
+          image: data.image,
+        }));
+        setPreviewImage(data.image);
+        toast.success("Image uploaded successfully");
+      } else {
+        throw new Error(data.message || "Upload failed");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(error.message || "Failed to upload image");
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      image: "",
+    });
+    setPreviewImage("");
+  };
+
   const handleAddCategory = async (e) => {
     e.preventDefault();
     try {
@@ -81,15 +155,15 @@ const CategoryList = () => {
       console.log("User token:", user?.token);
       console.log("Form data for new category:", formData);
 
-      await createCategory(formData);
+      await categoryService.createCategory(formData);
       toast.success("Category added successfully");
-      setFormData({ name: "", description: "", image: "" });
+      resetForm();
       setShowAddModal(false);
       fetchCategories();
     } catch (err) {
       console.error("Error adding category:", err);
 
-      if (err.message.includes("Authentication required")) {
+      if (err.message?.includes("Authentication required")) {
         toast.error("Authentication issue. Please log out and log back in.");
       } else {
         toast.error(err.message || "Failed to add category");
@@ -125,14 +199,14 @@ const CategoryList = () => {
       }
 
       setLoading(true);
-      await updateCategory(selectedCategory._id, formData);
+      await categoryService.updateCategory(selectedCategory._id, formData);
       toast.success("Category updated successfully");
       setShowEditModal(false);
       fetchCategories();
     } catch (err) {
       console.error("Error updating category:", err);
 
-      if (err.message.includes("Authentication required")) {
+      if (err.message?.includes("Authentication required")) {
         toast.error("Authentication issue. Please log out and log back in.");
       } else {
         toast.error(err.message || "Failed to update category");
@@ -162,14 +236,14 @@ const CategoryList = () => {
       }
 
       setLoading(true);
-      await deleteCategory(selectedCategory._id);
+      await categoryService.deleteCategory(selectedCategory._id);
       toast.success("Category deleted successfully");
       setShowDeleteModal(false);
       fetchCategories();
     } catch (err) {
       console.error("Error deleting category:", err);
 
-      if (err.message.includes("Authentication required")) {
+      if (err.message?.includes("Authentication required")) {
         toast.error("Authentication issue. Please log out and log back in.");
       } else {
         toast.error(err.message || "Failed to delete category");
@@ -367,21 +441,58 @@ const CategoryList = () => {
                 />
               </div>
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  name="image"
-                  value={formData.image}
-                  onChange={handleChange}
-                  className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
-                />
+                <label className="mb-2 block text-sm font-medium">Image</label>
+                <div className="flex flex-col space-y-3">
+                  {previewImage && (
+                    <div className="relative">
+                      <img
+                        src={previewImage}
+                        alt="Category preview"
+                        className="h-32 w-full object-cover rounded-md"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src =
+                            "https://placehold.co/300x150?text=Preview";
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={uploadFileHandler}
+                      className="hidden"
+                      accept="image/*"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current.click()}
+                      className="flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-50"
+                      disabled={uploadLoading}
+                    >
+                      <FiUpload className="h-4 w-4" />
+                      {uploadLoading ? "Uploading..." : "Upload Image"}
+                    </button>
+                    <span className="text-sm text-gray-500">or</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="image"
+                    value={formData.image}
+                    onChange={handleChange}
+                    placeholder="Enter image URL"
+                    className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    resetForm();
+                    setShowAddModal(false);
+                  }}
                   className="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100"
                 >
                   Cancel
@@ -389,7 +500,7 @@ const CategoryList = () => {
                 <button
                   type="submit"
                   className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                  disabled={loading}
+                  disabled={loading || uploadLoading}
                 >
                   {loading ? <Spinner size="sm" /> : "Add Category"}
                 </button>
@@ -429,16 +540,50 @@ const CategoryList = () => {
                 />
               </div>
               <div className="mb-4">
-                <label className="mb-2 block text-sm font-medium">
-                  Image URL
-                </label>
-                <input
-                  type="text"
-                  name="image"
-                  value={formData.image}
-                  onChange={handleChange}
-                  className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
-                />
+                <label className="mb-2 block text-sm font-medium">Image</label>
+                <div className="flex flex-col space-y-3">
+                  {previewImage && (
+                    <div className="relative">
+                      <img
+                        src={previewImage}
+                        alt="Category preview"
+                        className="h-32 w-full object-cover rounded-md"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src =
+                            "https://placehold.co/300x150?text=Preview";
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={uploadFileHandler}
+                      className="hidden"
+                      accept="image/*"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current.click()}
+                      className="flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-50"
+                      disabled={uploadLoading}
+                    >
+                      <FiUpload className="h-4 w-4" />
+                      {uploadLoading ? "Uploading..." : "Upload Image"}
+                    </button>
+                    <span className="text-sm text-gray-500">or</span>
+                  </div>
+                  <input
+                    type="text"
+                    name="image"
+                    value={formData.image}
+                    onChange={handleChange}
+                    placeholder="Enter image URL"
+                    className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <button
@@ -451,7 +596,7 @@ const CategoryList = () => {
                 <button
                   type="submit"
                   className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                  disabled={loading}
+                  disabled={loading || uploadLoading}
                 >
                   {loading ? <Spinner size="sm" /> : "Update Category"}
                 </button>

@@ -56,7 +56,17 @@ const Products = () => {
   };
 
   const handleCreate = async () => {
-    navigate("/admin/products/new/edit");
+    try {
+      // Store user token in localStorage for productService to access
+      if (user && user.token) {
+        localStorage.setItem("user", JSON.stringify(user));
+      }
+
+      // Navigate to product edit page with "new" as the ID
+      navigate("/admin/products/new");
+    } catch (error) {
+      toast.error(error.message || "Failed to create a new product");
+    }
   };
 
   const filteredProducts = products.filter((product) =>
@@ -113,7 +123,7 @@ const Products = () => {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-4 py-2 text-left">ID</th>
-                <th className="px-4 py-2 text-left">Name</th>
+                <th className="px-4 py-2 text-left">Product</th>
                 <th className="px-4 py-2 text-left">Price</th>
                 <th className="px-4 py-2 text-left">Category</th>
                 <th className="px-4 py-2 text-left">Stock</th>
@@ -129,7 +139,29 @@ const Products = () => {
                   <td className="px-4 py-2 text-sm text-muted-foreground">
                     {product._id.slice(-6)}
                   </td>
-                  <td className="px-4 py-2">{product.name}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 mr-3">
+                        <img
+                          src={
+                            product.images && product.images.length > 0
+                              ? product.images[0]
+                              : "https://placehold.co/100x100?text=No+Image"
+                          }
+                          alt={product.name}
+                          className="h-full w-full object-cover object-center"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src =
+                              "https://placehold.co/100x100?text=Error";
+                          }}
+                        />
+                      </div>
+                      <span className="truncate max-w-[180px] md:max-w-[250px]">
+                        {product.name}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-4 py-2">${product.price.toFixed(2)}</td>
                   <td className="px-4 py-2">{product.category}</td>
                   <td className="px-4 py-2">
@@ -149,7 +181,7 @@ const Products = () => {
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end space-x-2">
-                      <Link to={`/admin/products/${product._id}/edit`}>
+                      <Link to={`/admin/products/${product._id}`}>
                         <Button variant="ghost" size="sm">
                           <FiEdit className="h-4 w-4" />
                         </Button>

@@ -1,27 +1,17 @@
 import axios from "axios";
 
+const API_URL = "/api/categories";
+
 // Helper function to get auth token from local storage
 const getAuthConfig = () => {
+  const userJSON = localStorage.getItem("user");
+  if (!userJSON) {
+    throw new Error("Authentication required");
+  }
+
   try {
-    const authStorage = localStorage.getItem("auth-storage");
-
-    if (!authStorage) {
-      console.error("Auth storage not found");
-      throw new Error("Authentication required");
-    }
-
-    let parsedStorage;
-    try {
-      parsedStorage = JSON.parse(authStorage);
-    } catch (parseError) {
-      console.error("Failed to parse auth storage", parseError);
-      throw new Error("Authentication data corrupted");
-    }
-
-    const { user } = parsedStorage || { user: null };
-
+    const user = JSON.parse(userJSON);
     if (!user || !user.token) {
-      console.error("User token not found in auth storage", parsedStorage);
       throw new Error("Authentication required - please log in");
     }
 
@@ -33,85 +23,49 @@ const getAuthConfig = () => {
     };
   } catch (error) {
     console.error("Error getting auth config:", error);
-    throw error;
+    throw new Error("Authentication required");
   }
 };
 
 // Get all categories
-export const getCategories = async () => {
-  try {
-    const { data } = await axios.get("/api/categories");
-    return data;
-  } catch (error) {
-    const message =
-      error.response && error.response.data.message
-        ? error.response.data.message
-        : error.message;
-    throw new Error(message);
-  }
+const getCategories = async () => {
+  const response = await axios.get(API_URL);
+  return response.data;
 };
 
-// Get category by ID
-export const getCategoryById = async (id) => {
-  try {
-    const { data } = await axios.get(`/api/categories/${id}`);
-    return data;
-  } catch (error) {
-    const message =
-      error.response && error.response.data.message
-        ? error.response.data.message
-        : error.message;
-    throw new Error(message);
-  }
+// Get single category
+const getCategoryById = async (id) => {
+  const response = await axios.get(`${API_URL}/${id}`);
+  return response.data;
 };
 
-// Create a new category (admin only)
-export const createCategory = async (categoryData) => {
-  try {
-    const config = getAuthConfig();
-    console.log("Creating category with config:", config);
-    const { data } = await axios.post("/api/categories", categoryData, config);
-    return data;
-  } catch (error) {
-    console.error("Create category error:", error);
-    const message =
-      error.response && error.response.data.message
-        ? error.response.data.message
-        : error.message;
-    throw new Error(message);
-  }
+// Create category
+const createCategory = async (categoryData) => {
+  const config = getAuthConfig();
+  const response = await axios.post(API_URL, categoryData, config);
+  return response.data;
 };
 
-// Update a category (admin only)
-export const updateCategory = async (id, categoryData) => {
-  try {
-    const config = getAuthConfig();
-    const { data } = await axios.put(
-      `/api/categories/${id}`,
-      categoryData,
-      config
-    );
-    return data;
-  } catch (error) {
-    const message =
-      error.response && error.response.data.message
-        ? error.response.data.message
-        : error.message;
-    throw new Error(message);
-  }
+// Update category
+const updateCategory = async (id, categoryData) => {
+  const config = getAuthConfig();
+  const response = await axios.put(`${API_URL}/${id}`, categoryData, config);
+  return response.data;
 };
 
-// Delete a category (admin only)
-export const deleteCategory = async (id) => {
-  try {
-    const config = getAuthConfig();
-    const { data } = await axios.delete(`/api/categories/${id}`, config);
-    return data;
-  } catch (error) {
-    const message =
-      error.response && error.response.data.message
-        ? error.response.data.message
-        : error.message;
-    throw new Error(message);
-  }
+// Delete category
+const deleteCategory = async (id) => {
+  const config = getAuthConfig();
+  const response = await axios.delete(`${API_URL}/${id}`, config);
+  return response.data;
 };
+
+const categoryService = {
+  getCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+};
+
+export default categoryService;

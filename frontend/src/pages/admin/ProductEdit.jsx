@@ -13,7 +13,7 @@ import {
   updateProduct,
   createProduct,
 } from "../../services/productService";
-import { getCategories } from "../../services/categoryService";
+import categoryService from "../../services/categoryService";
 import { uploadImage } from "../../services/uploadService";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../../components/ui/Button";
@@ -38,10 +38,6 @@ const ProductEdit = () => {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [error, setError] = useState(null);
-  const [additionalImageFile, setAdditionalImageFile] = useState(null);
-  const [additionalImagePreview, setAdditionalImagePreview] = useState("");
-  const [uploadingAdditionalImage, setUploadingAdditionalImage] =
-    useState(false);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
@@ -50,7 +46,7 @@ const ProductEdit = () => {
     const fetchCategories = async () => {
       try {
         setLoadingCategories(true);
-        const data = await getCategories();
+        const data = await categoryService.getCategories();
         setCategories(data);
       } catch (err) {
         console.error("Error fetching categories:", err);
@@ -69,11 +65,42 @@ const ProductEdit = () => {
       try {
         setLoading(true);
         setError(null);
+
+        // Store user token in localStorage for productService to access
+        if (user && user.token) {
+          localStorage.setItem("user", JSON.stringify(user));
+        }
+
+        if (id === "new") {
+          // For new products, just set default values and exit early
+          setProduct({
+            _id: "new",
+            name: "",
+            price: 0,
+            brand: "",
+            category: "",
+            countInStock: 0,
+            description: "",
+            images: [],
+          });
+          setLoading(false);
+          return;
+        }
+
         const data = await getProductDetails(id);
+
+        // Ensure images is an array
+        let productImages = [];
+        if (data.images && Array.isArray(data.images)) {
+          productImages = data.images;
+        } else if (data.image) {
+          // If only single image exists, convert to array
+          productImages = [data.image];
+        }
+
         setProduct({
           ...data,
-          images: data.images || [],
-          image: data.image || "",
+          images: productImages,
         });
       } catch (err) {
         setError(err.message || "Failed to load product details");
@@ -83,23 +110,8 @@ const ProductEdit = () => {
       }
     };
 
-    if (id !== "new") {
-      fetchProduct();
-    } else {
-      // Create new product mode - set defaults for required fields
-      setProduct({
-        name: "New Product",
-        price: 0,
-        brand: "Brand",
-        category: "Category",
-        countInStock: 0,
-        description: "Product description",
-        image: "https://placehold.co/600x400?text=Product+Image",
-        images: [],
-      });
-      setLoading(false);
-    }
-  }, [id]);
+    fetchProduct();
+  }, [id, user]);
 
   // Handle input change
   const handleChange = (e) => {
@@ -127,58 +139,6 @@ const ProductEdit = () => {
     }
   };
 
-  // Handle additional image upload preview
-  const handleAdditionalImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setAdditionalImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAdditionalImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Add additional image to product
-  const handleAddAdditionalImage = async () => {
-    if (!additionalImageFile) return;
-
-    try {
-      setUploadingAdditionalImage(true);
-      const uploadResult = await uploadImage(additionalImageFile, user.token);
-
-      if (uploadResult && uploadResult.image) {
-        // Create a copy of the current images array
-        const updatedImages = Array.isArray(product.images)
-          ? [...product.images]
-          : [];
-
-        // Add the new image if it's not already in the array
-        if (!updatedImages.includes(uploadResult.image)) {
-          updatedImages.push(uploadResult.image);
-        }
-
-        // Update the product state with the new images array
-        setProduct({
-          ...product,
-          images: updatedImages,
-        });
-
-        // Clear the additional image input
-        setAdditionalImageFile(null);
-        setAdditionalImagePreview("");
-
-        toast.success("Image added to product gallery");
-      }
-    } catch (error) {
-      console.error("Failed to upload additional image:", error);
-      toast.error("Failed to upload additional image");
-    } finally {
-      setUploadingAdditionalImage(false);
-    }
-  };
-
   // Remove image from product images array
   const handleRemoveImage = (imageUrl) => {
     // Create a copy of the current images array without the removed image
@@ -201,6 +161,15 @@ const ProductEdit = () => {
 
     try {
       setSaving(true);
+
+      // Store token in localStorage for productService to access
+      if (user && user.token) {
+        localStorage.setItem("user", JSON.stringify(user));
+      } else {
+        toast.error("Authentication required. Please log in again.");
+        navigate("/login?redirect=/admin/products");
+        return;
+      }
 
       // Validate fields - check for all required fields
       if (!product.name) {
@@ -227,6 +196,13 @@ const ProductEdit = () => {
         return;
       }
 
+      // Check if product has at least one image
+      if ((!product.images || product.images.length === 0) && !imageFile) {
+        toast.error("At least one product image is required");
+        setSaving(false);
+        return;
+      }
+
       // Create the product object with required fields
       const updatedProduct = {
         ...product,
@@ -234,80 +210,63 @@ const ProductEdit = () => {
         countInStock: Number(product.countInStock || 0),
       };
 
+      console.log("Product data before save:", updatedProduct);
+
       // Handle image upload if there's a new image
       if (imageFile) {
         try {
           const uploadResult = await uploadImage(imageFile, user.token);
           if (uploadResult && uploadResult.image) {
-            // Set the main image
-            updatedProduct.image = uploadResult.image;
-
-            // IMPORTANT: Also add the image to the images array
-            // First create a copy of the current images array or initialize an empty array
+            // Add the image to the images array
             const currentImages = Array.isArray(updatedProduct.images)
               ? [...updatedProduct.images]
               : [];
 
-            // Add the new image to the images array if it's not already there
+            // Don't add duplicate images
             if (!currentImages.includes(uploadResult.image)) {
               currentImages.push(uploadResult.image);
             }
 
-            // Update the images array in the product
             updatedProduct.images = currentImages;
-
-            console.log("Updated product with new image:", {
-              mainImage: updatedProduct.image,
-              imagesArray: updatedProduct.images,
-            });
           }
         } catch (uploadError) {
-          console.error("Image upload failed:", uploadError);
-          toast.error(
-            "Failed to upload image. Saving product with existing image."
-          );
+          console.error("Error uploading image:", uploadError);
+          toast.error("Failed to upload product image");
+          setSaving(false);
+          return;
         }
       }
 
-      // If no image is provided, use a placeholder
-      if (!updatedProduct.image) {
-        updatedProduct.image =
-          "https://placehold.co/600x400?text=Product+Image";
-
-        // Ensure the placeholder is also in the images array
-        if (
-          !Array.isArray(updatedProduct.images) ||
-          updatedProduct.images.length === 0
-        ) {
-          updatedProduct.images = [
-            "https://placehold.co/600x400?text=Product+Image",
-          ];
-        }
-      }
-
-      // Always ensure images array exists
+      // Ensure images array is valid
       if (!Array.isArray(updatedProduct.images)) {
-        updatedProduct.images = updatedProduct.image
-          ? [updatedProduct.image]
-          : [];
+        updatedProduct.images = [];
       }
 
-      console.log("Saving product with data:", updatedProduct);
+      // Make sure images array is not empty
+      if (updatedProduct.images.length === 0) {
+        toast.error("At least one product image is required");
+        setSaving(false);
+        return;
+      }
 
+      let result;
       if (id === "new") {
-        // Create new product with all data in one request
-        await createProduct(updatedProduct, user.token);
+        // Create new product
+        console.log("Creating new product with data:", updatedProduct);
+        result = await createProduct(updatedProduct, user.token);
         toast.success("Product created successfully");
       } else {
         // Update existing product
-        await updateProduct(updatedProduct, user.token);
+        console.log("Updating product with data:", updatedProduct);
+        result = await updateProduct(updatedProduct, user.token);
         toast.success("Product updated successfully");
       }
 
+      // Redirect back to products list
       navigate("/admin/products");
-    } catch (err) {
-      console.error("Error saving product:", err);
-      toast.error(err.message || "Failed to save product");
+    } catch (error) {
+      console.error("Error saving product:", error);
+      toast.error(error.message || "Failed to save product");
     } finally {
       setSaving(false);
     }
@@ -408,54 +367,39 @@ const ProductEdit = () => {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel htmlFor="category">Category*</FormLabel>
-              {loadingCategories ? (
-                <div className="flex items-center space-x-2 p-2 border border-input rounded-md">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                  <span className="text-sm text-muted-foreground">
-                    Loading categories...
-                  </span>
-                </div>
-              ) : categories.length > 0 ? (
-                <select
-                  id="category"
-                  name="category"
-                  value={product.category}
-                  onChange={handleChange}
-                  className="w-full rounded-md border border-input bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((category) => (
+              <FormLabel htmlFor="category">Category</FormLabel>
+              <select
+                id="category"
+                name="category"
+                value={product.category}
+                onChange={handleChange}
+                required
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select a category</option>
+                {categories &&
+                  categories.map((category) => (
                     <option key={category._id} value={category.name}>
                       {category.name}
                     </option>
                   ))}
-                </select>
-              ) : (
-                <div className="flex flex-col space-y-2">
-                  <input
-                    type="text"
-                    id="category"
-                    name="category"
-                    value={product.category}
-                    onChange={handleChange}
-                    className="w-full rounded-md border border-input bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    No categories found. You can type one or{" "}
-                    <a
-                      href="/admin/categories"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      add categories here
-                    </a>
-                    .
-                  </p>
-                </div>
+              </select>
+              {loadingCategories && (
+                <p className="text-sm text-muted-foreground">
+                  Loading categories...
+                </p>
+              )}
+              {categories.length === 0 && !loadingCategories && (
+                <FormMessage>
+                  No categories found.{" "}
+                  <a
+                    href="/admin/categories"
+                    className="text-primary underline"
+                  >
+                    Create a category
+                  </a>{" "}
+                  first.
+                </FormMessage>
               )}
             </FormGroup>
           </div>
@@ -463,130 +407,82 @@ const ProductEdit = () => {
           {/* Right Column - Images & Description */}
           <div className="space-y-4">
             <FormGroup>
-              <FormLabel htmlFor="image">Main Product Image</FormLabel>
-              <div className="mb-2">
-                {(imagePreview || product.image) && (
-                  <div className="relative mb-2">
-                    <img
-                      src={imagePreview || product.image}
-                      alt={product.name}
-                      className="h-32 w-32 object-cover rounded-md border border-border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImagePreview("");
-                        setImageFile(null);
-                        setProduct({ ...product, image: "" });
-                      }}
-                      className="absolute -top-2 -right-2 rounded-full bg-background p-1 text-destructive hover:bg-destructive/10"
-                    >
-                      <FiXCircle className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center">
-                  <label
-                    htmlFor="image-upload"
-                    className="flex items-center justify-center rounded-md border border-dashed border-input bg-background p-4 text-sm text-muted-foreground hover:bg-secondary cursor-pointer"
-                  >
-                    <FiCamera className="mr-2 h-4 w-4" />
-                    Upload Main Image
-                  </label>
-                  <input
-                    type="file"
-                    id="image-upload"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                </div>
-              </div>
-            </FormGroup>
-
-            {/* Additional Product Images */}
-            <FormGroup>
-              <FormLabel>Additional Product Images</FormLabel>
-              <div className="mb-4">
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {Array.isArray(product.images) &&
-                    product.images.map((img, index) => (
-                      <div key={index} className="relative">
+              <FormLabel>Product Images</FormLabel>
+              <div className="space-y-4">
+                {/* Image preview section */}
+                {product.images && product.images.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                    {product.images.map((imageUrl, index) => (
+                      <div
+                        key={`${imageUrl}-${index}`}
+                        className="relative group overflow-hidden rounded-md border border-border bg-card"
+                      >
                         <img
-                          src={img}
+                          src={imageUrl}
                           alt={`Product image ${index + 1}`}
-                          className="h-24 w-full object-cover rounded-md border border-border"
+                          className="aspect-square h-full w-full object-cover transition-all duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src =
+                              "https://placehold.co/300x300?text=Image+Error";
+                          }}
                         />
                         <button
                           type="button"
-                          onClick={() => handleRemoveImage(img)}
-                          className="absolute -top-2 -right-2 rounded-full bg-background p-1 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveImage(imageUrl)}
+                          className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white opacity-0 transition-opacity duration-300 hover:bg-destructive/80 group-hover:opacity-100"
                         >
                           <FiXCircle className="h-4 w-4" />
                         </button>
                       </div>
                     ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex h-40 items-center justify-center rounded-md border-2 border-dashed border-input bg-background p-4 text-muted-foreground">
+                    No images added yet
+                  </div>
+                )}
 
-                {/* Upload additional image */}
-                <div className="flex items-center space-x-2">
-                  {additionalImagePreview && (
-                    <div className="relative">
+                {/* Upload new image section */}
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <input
+                      type="file"
+                      id="image"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById("image").click()}
+                      className="w-full"
+                    >
+                      <FiCamera className="mr-2 h-4 w-4" />
+                      {imagePreview ? "Change Image" : "Upload Image"}
+                    </Button>
+                  </div>
+
+                  {/* Image preview */}
+                  {imagePreview && (
+                    <div className="relative mt-4 overflow-hidden rounded-md border border-border">
                       <img
-                        src={additionalImagePreview}
-                        alt="Additional image preview"
-                        className="h-24 w-24 object-cover rounded-md border border-border"
+                        src={imagePreview}
+                        alt="Product preview"
+                        className="aspect-video w-full object-cover"
                       />
                       <button
                         type="button"
                         onClick={() => {
-                          setAdditionalImagePreview("");
-                          setAdditionalImageFile(null);
+                          setImagePreview("");
+                          setImageFile(null);
                         }}
-                        className="absolute -top-2 -right-2 rounded-full bg-background p-1 text-destructive hover:bg-destructive/10"
+                        className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white hover:bg-destructive/80"
                       >
                         <FiXCircle className="h-4 w-4" />
                       </button>
                     </div>
-                  )}
-
-                  <div className="flex items-center">
-                    <label
-                      htmlFor="additional-image-upload"
-                      className="flex items-center justify-center rounded-md border border-dashed border-input bg-background p-4 text-sm text-muted-foreground hover:bg-secondary cursor-pointer"
-                    >
-                      <FiCamera className="mr-2 h-4 w-4" />
-                      Select Image
-                    </label>
-                    <input
-                      type="file"
-                      id="additional-image-upload"
-                      accept="image/*"
-                      onChange={handleAdditionalImageChange}
-                      className="hidden"
-                    />
-                  </div>
-
-                  {additionalImageFile && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleAddAdditionalImage}
-                      disabled={uploadingAdditionalImage}
-                      className="flex items-center"
-                    >
-                      {uploadingAdditionalImage ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <FiPlus className="mr-2 h-4 w-4" />
-                          Add to Gallery
-                        </>
-                      )}
-                    </Button>
                   )}
                 </div>
               </div>

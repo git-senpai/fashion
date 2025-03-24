@@ -56,16 +56,15 @@ const createCategory = asyncHandler(async (req, res) => {
 // @route   GET /api/categories
 // @access  Public
 const getCategories = asyncHandler(async (req, res) => {
-  const categories = await Category.find({}).sort({ name: 1 });
+  const categories = await Category.find({});
   res.json(categories);
 });
 
-// @desc    Get category by ID
+// @desc    Get single category
 // @route   GET /api/categories/:id
 // @access  Public
 const getCategoryById = asyncHandler(async (req, res) => {
   const category = await Category.findById(req.params.id);
-
   if (category) {
     res.json(category);
   } else {
@@ -78,29 +77,14 @@ const getCategoryById = asyncHandler(async (req, res) => {
 // @route   PUT /api/categories/:id
 // @access  Private/Admin
 const updateCategory = asyncHandler(async (req, res) => {
-  const { name, description, image, isActive } = req.body;
-
   const category = await Category.findById(req.params.id);
 
   if (category) {
-    // If name is changing, check for uniqueness
-    if (name && name !== category.name) {
-      const categoryExists = await Category.findOne({ name });
-      if (categoryExists) {
-        res.status(400);
-        throw new Error("Category name already exists");
-      }
-      category.name = name;
-      category.slug = createSlug(name);
-    }
-
-    category.description = description || category.description;
-    category.image = image || category.image;
-
-    // Only update isActive if explicitly provided (could be false)
-    if (isActive !== undefined) {
-      category.isActive = isActive;
-    }
+    category.name = req.body.name || category.name;
+    category.description = req.body.description || category.description;
+    category.image = req.body.image || category.image;
+    category.isActive =
+      req.body.isActive !== undefined ? req.body.isActive : category.isActive;
 
     const updatedCategory = await category.save();
     res.json(updatedCategory);
@@ -117,7 +101,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
   const category = await Category.findById(req.params.id);
 
   if (category) {
-    await Category.deleteOne({ _id: req.params.id });
+    await category.deleteOne();
     res.json({ message: "Category removed" });
   } else {
     res.status(404);
