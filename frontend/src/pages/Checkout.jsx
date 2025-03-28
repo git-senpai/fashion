@@ -11,7 +11,8 @@ import { FormGroup, FormLabel, FormMessage } from "../components/ui/Form";
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { cartItems, clearCart, getTotals } = useCartStore();
+  const { cartItems, clearCart, subtotal, tax, shippingPrice, total } =
+    useCartStore();
   const { user, isAuthenticated } = useAuth();
   const [activeStep, setActiveStep] = useState("shipping");
   const [formErrors, setFormErrors] = useState({});
@@ -39,14 +40,8 @@ const Checkout = () => {
     savePaymentInfo: false,
   });
 
-  // Calculate order summary
-  const subtotal = cartItems.reduce(
-    (total, item) => total + item.price * item.quantity,
-    0
-  );
-  const shipping = subtotal > 100 ? 0 : 10;
-  const tax = subtotal * 0.1; // 10% tax
-  const total = subtotal + shipping + tax;
+  // Use the shipping price from the store
+  const shipping = shippingPrice;
 
   useEffect(() => {
     // Redirect to cart if cart is empty

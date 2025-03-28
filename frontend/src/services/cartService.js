@@ -4,39 +4,32 @@ import axios from "axios";
 const getAuthConfig = () => {
   try {
     const authStorage = localStorage.getItem("auth-storage");
-
     if (!authStorage) {
-      console.error("Auth storage not found");
       throw new Error("Authentication required");
     }
 
-    let parsedStorage;
-    try {
-      parsedStorage = JSON.parse(authStorage);
-    } catch (parseError) {
-      console.error("Failed to parse auth storage", parseError);
-      throw new Error("Authentication data corrupted");
-    }
-
-    const { user } = parsedStorage || { user: null };
-
-    if (!user || !user.token) {
-      console.error("User token not found in auth storage");
-      throw new Error("Authentication required - please log in");
+    const parsed = JSON.parse(authStorage);
+    if (
+      !parsed ||
+      !parsed.state ||
+      !parsed.state.user ||
+      !parsed.state.user.token
+    ) {
+      throw new Error("Authentication required");
     }
 
     return {
       headers: {
-        Authorization: `Bearer ${user.token}`,
+        Authorization: `Bearer ${parsed.state.user.token}`,
       },
     };
   } catch (error) {
     console.error("Error getting auth config:", error);
-    throw error;
+    throw new Error("Authentication required");
   }
 };
 
-// Get user's cart from the server
+// Get user's cart
 export const getCart = async () => {
   try {
     const config = getAuthConfig();
@@ -54,13 +47,23 @@ export const getCart = async () => {
 // Add a product to the cart
 export const addToCart = async (productId, quantity = 1) => {
   try {
-    const config = getAuthConfig();
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
+
+    // Ensure quantity is an integer
+    const parsedQuantity = parseInt(quantity);
+    if (isNaN(parsedQuantity) || parsedQuantity < 1) {
+      throw new Error("Invalid quantity");
+    }
+
     const { data } = await axios.post(
       "/api/cart",
-      {
-        productId,
-        quantity,
-      },
+      { productId, quantity: parsedQuantity },
       config
     );
     return data.cartItems;
@@ -73,15 +76,26 @@ export const addToCart = async (productId, quantity = 1) => {
   }
 };
 
-// Update a cart item quantity
+// Update cart item quantity
 export const updateCartItem = async (productId, quantity) => {
   try {
-    const config = getAuthConfig();
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
+
+    // Ensure quantity is an integer
+    const parsedQuantity = parseInt(quantity);
+    if (isNaN(parsedQuantity) || parsedQuantity < 1) {
+      throw new Error("Invalid quantity");
+    }
+
     const { data } = await axios.put(
       `/api/cart/${productId}`,
-      {
-        quantity,
-      },
+      { quantity: parsedQuantity },
       config
     );
     return data.cartItems;
@@ -114,7 +128,7 @@ export const clearCart = async () => {
   try {
     const config = getAuthConfig();
     const { data } = await axios.delete("/api/cart", config);
-    return data.cartItems;
+    return data.cartItems || [];
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -124,48 +138,28 @@ export const clearCart = async () => {
   }
 };
 
-// Sync the local cart with the server
+// Sync local cart with server
 export const syncCart = async (cartItems) => {
   try {
-    const config = getAuthConfig();
-    const { data } = await axios.post("/api/cart/sync", { cartItems }, config);
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
 
-    // Process validation messages if any
-    if (data.validationMessages && data.validationMessages.length > 0) {
-      // Log validation issues
-      console.log("Cart sync validation messages:", data.validationMessages);
+    // Format cart items for sync
+    const itemsToSync = cartItems.map((item) => ({
+      productId: item._id,
+      quantity: item.quantity,
+    }));
 
-      // Group validation messages by type
-      const outOfStock = [];
-      const nonExistent = [];
-      const quantityAdjusted = [];
-      const otherIssues = [];
-
-      data.validationMessages.forEach((message) => {
-        if (message.message.includes("out of stock")) {
-          outOfStock.push(message);
-        } else if (message.message.includes("no longer exists")) {
-          nonExistent.push(message);
-        } else if (message.message.includes("Quantity adjusted")) {
-          quantityAdjusted.push(message);
-        } else {
-          otherIssues.push(message);
-        }
-      });
-
-      // Return validation summary with the cart items
-      return {
-        cartItems: data.cartItems,
-        validationSummary: {
-          outOfStock: outOfStock.length > 0 ? outOfStock : undefined,
-          nonExistent: nonExistent.length > 0 ? nonExistent : undefined,
-          quantityAdjusted:
-            quantityAdjusted.length > 0 ? quantityAdjusted : undefined,
-          otherIssues: otherIssues.length > 0 ? otherIssues : undefined,
-        },
-      };
-    }
-
+    const { data } = await axios.post(
+      "/api/cart/sync",
+      { items: itemsToSync },
+      config
+    );
     return data.cartItems;
   } catch (error) {
     const message =

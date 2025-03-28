@@ -16,10 +16,15 @@ const Cart = () => {
   const {
     cartItems,
     removeFromCart,
-    updateCartQuantity,
+    updateCartItemQuantity,
     initCart,
-    isLoading,
+    loading,
     error,
+    itemsCount,
+    subtotal,
+    tax,
+    shippingPrice: shipping,
+    total,
   } = useCartStore();
 
   const [loadingAction, setLoadingAction] = useState(false);
@@ -31,15 +36,12 @@ const Cart = () => {
     initCart();
   }, [initCart]);
 
-  const { itemsCount, subtotal, shipping, tax, total } =
-    useCartStore().getTotals();
-
   const handleQuantityChange = async (id, quantity) => {
     if (quantity < 1) return;
 
     setLoadingAction(true);
     try {
-      await updateCartQuantity(id, quantity);
+      await updateCartItemQuantity(id, quantity);
     } catch (error) {
       toast.error(error.message || "Failed to update quantity");
     } finally {
@@ -70,7 +72,7 @@ const Cart = () => {
     initCart();
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -111,7 +113,7 @@ const Cart = () => {
     );
   }
 
-  if (cartItems.length === 0) {
+  if (!cartItems || cartItems.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
         <motion.div
@@ -217,7 +219,9 @@ const Cart = () => {
                           onClick={() =>
                             handleQuantityChange(item._id, item.quantity - 1)
                           }
-                          disabled={item.quantity <= 1 || loadingAction}
+                          disabled={
+                            item.quantity <= 1 || loadingAction || loading
+                          }
                           className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-300 hover:bg-gray-100 disabled:opacity-50"
                         >
                           -
@@ -230,7 +234,9 @@ const Cart = () => {
                             handleQuantityChange(item._id, item.quantity + 1)
                           }
                           disabled={
-                            item.quantity >= item.countInStock || loadingAction
+                            item.quantity >= item.countInStock ||
+                            loadingAction ||
+                            loading
                           }
                           className="w-8 h-8 rounded-full flex items-center justify-center border border-gray-300 hover:bg-gray-100 disabled:opacity-50"
                         >
@@ -246,7 +252,7 @@ const Cart = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleRemoveFromCart(item._id)}
-                        disabled={loadingAction}
+                        disabled={loadingAction || loading}
                         className="text-red-500 hover:text-red-700 disabled:opacity-50"
                       >
                         <FiTrash className="h-5 w-5" />
@@ -300,10 +306,10 @@ const Cart = () => {
 
               <button
                 onClick={handleCheckout}
-                disabled={loadingAction}
+                disabled={loadingAction || loading}
                 className="w-full bg-primary text-white py-3 px-4 rounded-md hover:bg-primary-dark transition-colors duration-300 mt-6 disabled:opacity-50"
               >
-                {loadingAction ? (
+                {loadingAction || loading ? (
                   <>
                     <Spinner size="sm" className="mr-2" />
                     Processing...

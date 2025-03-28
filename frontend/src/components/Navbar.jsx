@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../hooks/useAuth";
 import { useCartStore } from "../store/useCartStore";
+import { useWishlistStore } from "../store/useWishlistStore";
 import { gsap } from "gsap";
 
 export const Navbar = () => {
@@ -19,6 +20,7 @@ export const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const { user, logout } = useAuth();
   const cartItems = useCartStore((state) => state.cartItems);
+  const wishlistItems = useWishlistStore((state) => state.wishlistItems);
   const navigate = useNavigate();
 
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -104,6 +106,16 @@ export const Navbar = () => {
 
           {/* Icons */}
           <div className="flex items-center space-x-4">
+            {user && (
+              <Link to="/wishlist" className="relative">
+                <FiHeart className="h-6 w-6 text-foreground" />
+                {wishlistItems.length > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white">
+                    {wishlistItems.length}
+                  </span>
+                )}
+              </Link>
+            )}
             <Link to="/cart" className="relative">
               <FiShoppingCart className="h-6 w-6 text-foreground" />
               {cartItems.length > 0 && (
@@ -142,6 +154,13 @@ export const Navbar = () => {
                         onClick={() => setIsOpen(false)}
                       >
                         Dashboard
+                      </Link>
+                      <Link
+                        to="/wishlist"
+                        className="block rounded-md px-4 py-2 text-sm hover:bg-secondary"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        Wishlist
                       </Link>
                       {user.isAdmin && (
                         <Link
@@ -235,6 +254,15 @@ export const Navbar = () => {
                 >
                   Cart
                 </Link>
+                {user && (
+                  <Link
+                    to="/wishlist"
+                    className="block py-2 font-medium"
+                    onClick={toggleMenu}
+                  >
+                    Wishlist
+                  </Link>
+                )}
 
                 {user ? (
                   <>

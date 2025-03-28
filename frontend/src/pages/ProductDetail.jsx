@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   FiShoppingCart,
   FiHeart,
@@ -41,6 +41,7 @@ const ProductDetail = () => {
   const [activeTab, setActiveTab] = useState("description");
   const [addingToCart, setAddingToCart] = useState(false);
   const [addingToWishlist, setAddingToWishlist] = useState(false);
+  const navigate = useNavigate();
 
   // Check if the product is in the wishlist
   const productInWishlist = product ? isInWishlist(product._id) : false;
@@ -69,7 +70,7 @@ const ProductDetail = () => {
     setAddingToCart(true);
     try {
       await addToCart(product, quantity);
-      // Toast is handled by the addToCart function in useCartStore
+      // Toast notification is handled inside addToCart function
     } catch (error) {
       console.error("Failed to add to cart:", error);
       toast.error(error.message || "Failed to add to cart");
@@ -83,6 +84,7 @@ const ProductDetail = () => {
 
     if (!isAuthenticated) {
       toast.error("Please log in to add items to your wishlist");
+      navigate("/login?redirect=products/" + id);
       return;
     }
 
@@ -90,10 +92,11 @@ const ProductDetail = () => {
     try {
       if (productInWishlist) {
         await removeFromWishlist(product._id);
+        // Toast notification is handled inside removeFromWishlist function
       } else {
         await addToWishlist(product);
+        // Toast notification is handled inside addToWishlist function
       }
-      // Toast is handled by the wishlist store functions
     } catch (error) {
       console.error("Failed to update wishlist:", error);
       toast.error(error.message || "Failed to update wishlist");
@@ -104,7 +107,7 @@ const ProductDetail = () => {
 
   const handleQuantityChange = (e) => {
     const value = parseInt(e.target.value);
-    if (value > 0 && value <= product.countInStock) {
+    if (!isNaN(value) && value > 0 && value <= (product?.countInStock || 1)) {
       setQuantity(value);
     }
   };

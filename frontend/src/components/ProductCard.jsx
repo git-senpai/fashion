@@ -5,13 +5,15 @@ import { FiHeart, FiShoppingCart, FiEye } from "react-icons/fi";
 import { toast } from "sonner";
 import { useCartStore } from "../store/useCartStore";
 import { useAuth } from "../hooks/useAuth";
-import { addToWishlist } from "../services/productService";
+import { useWishlistStore } from "../store/useWishlistStore";
 
 export const ProductCard = ({ product }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [addingToCart, setAddingToCart] = useState(false);
   const { addToCart } = useCartStore();
   const { user } = useAuth();
+  const { addToWishlist } = useWishlistStore();
 
   // Make sure product has default values for required properties
   const safeProduct = {
@@ -41,11 +43,22 @@ export const ProductCard = ({ product }) => {
     }
   })();
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    addToCart(safeProduct);
-    toast.success(`${safeProduct.name} added to cart`);
+
+    if (addingToCart) return;
+
+    setAddingToCart(true);
+    try {
+      await addToCart(safeProduct);
+      // Toast notification is handled inside the addToCart function
+    } catch (error) {
+      console.error("Failed to add to cart:", error);
+      toast.error(error.message || "Failed to add to cart");
+    } finally {
+      setAddingToCart(false);
+    }
   };
 
   const handleAddToWishlist = async (e) => {
@@ -58,9 +71,10 @@ export const ProductCard = ({ product }) => {
     }
 
     try {
-      await addToWishlist(safeProduct._id);
-      toast.success("Added to wishlist");
+      await addToWishlist(safeProduct);
+      // Toast notification is handled inside the addToWishlist function
     } catch (error) {
+      console.error("Failed to add to wishlist:", error);
       toast.error(error.message || "Failed to add to wishlist");
     }
   };
@@ -123,14 +137,18 @@ export const ProductCard = ({ product }) => {
             </button>
             <button
               onClick={handleAddToCart}
-              disabled={safeProduct.countInStock === 0}
+              disabled={safeProduct.countInStock === 0 || addingToCart}
               className={`flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md transition-colors ${
-                safeProduct.countInStock === 0
+                safeProduct.countInStock === 0 || addingToCart
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-primary hover:text-white"
               }`}
             >
-              <FiShoppingCart className="h-4 w-4" />
+              {addingToCart ? (
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+              ) : (
+                <FiShoppingCart className="h-4 w-4" />
+              )}
             </button>
             <Link
               to={`/products/${safeProduct._id}`}

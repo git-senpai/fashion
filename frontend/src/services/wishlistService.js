@@ -2,18 +2,31 @@ import axios from "axios";
 
 // Helper function to get auth token from local storage
 const getAuthConfig = () => {
-  const authStorage = localStorage.getItem("auth-storage");
-  const { user } = authStorage ? JSON.parse(authStorage) : { user: null };
+  try {
+    const authStorage = localStorage.getItem("auth-storage");
+    if (!authStorage) {
+      throw new Error("Authentication required");
+    }
 
-  if (!user || !user.token) {
+    const parsed = JSON.parse(authStorage);
+    if (
+      !parsed ||
+      !parsed.state ||
+      !parsed.state.user ||
+      !parsed.state.user.token
+    ) {
+      throw new Error("Authentication required");
+    }
+
+    return {
+      headers: {
+        Authorization: `Bearer ${parsed.state.user.token}`,
+      },
+    };
+  } catch (error) {
+    console.error("Error getting auth config:", error);
     throw new Error("Authentication required");
   }
-
-  return {
-    headers: {
-      Authorization: `Bearer ${user.token}`,
-    },
-  };
 };
 
 // Get user's wishlist
@@ -21,7 +34,7 @@ export const getWishlist = async () => {
   try {
     const config = getAuthConfig();
     const { data } = await axios.get("/api/wishlist", config);
-    return data;
+    return data; // Backend returns an array of wishlist items
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -42,8 +55,12 @@ export const addToWishlist = async (productId) => {
       },
     };
 
+    if (!productId) {
+      throw new Error("Product ID is required");
+    }
+
     const { data } = await axios.post("/api/wishlist", { productId }, config);
-    return data;
+    return data; // Backend returns updated wishlist
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -57,8 +74,13 @@ export const addToWishlist = async (productId) => {
 export const removeFromWishlist = async (productId) => {
   try {
     const config = getAuthConfig();
+
+    if (!productId) {
+      throw new Error("Product ID is required");
+    }
+
     const { data } = await axios.delete(`/api/wishlist/${productId}`, config);
-    return data;
+    return data; // Backend returns updated wishlist
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -73,7 +95,7 @@ export const clearWishlist = async () => {
   try {
     const config = getAuthConfig();
     const { data } = await axios.delete("/api/wishlist", config);
-    return data;
+    return data; // Backend returns empty array
   } catch (error) {
     const message =
       error.response && error.response.data.message
