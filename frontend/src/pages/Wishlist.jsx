@@ -72,6 +72,22 @@ const Wishlist = () => {
     initWishlist();
   };
 
+  // Helper function to get the product image
+  const getProductImage = (product) => {
+    // If product has a single image property and it's not empty
+    if (product.image) {
+      return product.image;
+    }
+
+    // If product has an images array and it's not empty
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      return product.images[0];
+    }
+
+    // Fallback to placeholder
+    return "https://placehold.co/400x400?text=No+Image";
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -179,7 +195,7 @@ const Wishlist = () => {
             <Link to={`/products/${product._id}`}>
               <div className="h-56 overflow-hidden relative">
                 <img
-                  src={product.image}
+                  src={getProductImage(product)}
                   alt={product.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {

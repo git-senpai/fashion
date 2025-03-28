@@ -44,6 +44,7 @@ export const useWishlistStore = create(
         set({ loading: true, error: null });
         try {
           const wishlistItems = await wishlistService.getWishlist();
+          console.log("Wishlist items from API:", wishlistItems);
           set({ wishlistItems, loading: false });
         } catch (error) {
           console.error("Failed to initialize wishlist:", error);
