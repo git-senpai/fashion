@@ -118,7 +118,11 @@ const WishlistPage = () => {
               className="block h-48 overflow-hidden"
             >
               <img
-                src={product.image}
+                src={
+                  product.images && product.images.length > 0
+                    ? product.images[0]
+                    : product.image || "/placeholder-image.jpg"
+                }
                 alt={product.name}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
               />

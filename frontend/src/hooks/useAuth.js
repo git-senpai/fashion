@@ -83,6 +83,10 @@ const useAuthStore = create(
       // Logout user
       logout: () => {
         set({ user: null });
+        //refresh the page
+        window.location.reload();
+        //clear the local storage
+        localStorage.clear();
         toast.success("Logged out successfully");
       },
 

@@ -2,65 +2,65 @@
 @import "./utils/tailwind-utils.css";
 
 :root {
-  --color-background: #ffffff;
-  --color-foreground: #0f172a;
+  --color-background: #fef5f7;
+  --color-foreground: #333333;
 
   --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
+  --color-card-foreground: #333333;
 
   --color-popover: #ffffff;
-  --color-popover-foreground: #0f172a;
+  --color-popover-foreground: #333333;
 
-  --color-primary: #0f172a;
-  --color-primary-foreground: #f8fafc;
+  --color-primary: #e84a7f;
+  --color-primary-foreground: #ffffff;
 
-  --color-secondary: #f1f5f9;
-  --color-secondary-foreground: #0f172a;
+  --color-secondary: #fde2e9;
+  --color-secondary-foreground: #333333;
 
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
+  --color-muted: #fde2e9;
+  --color-muted-foreground: #9b6a7b;
 
-  --color-accent: #f1f5f9;
-  --color-accent-foreground: #0f172a;
+  --color-accent: #f7cad5;
+  --color-accent-foreground: #333333;
 
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #f8fafc;
+  --color-destructive: #e74c3c;
+  --color-destructive-foreground: #ffffff;
 
-  --color-border: #e2e8f0;
-  --color-input: #e2e8f0;
-  --color-ring: #0f172a;
+  --color-border: #f7cad5;
+  --color-input: #f7cad5;
+  --color-ring: #e84a7f;
 
-  --radius: 0.5rem;
+  --radius: 0.8rem;
 }
 
 .dark {
-  --color-background: #0f172a;
+  --color-background: #251e26;
   --color-foreground: #f8fafc;
 
-  --color-card: #0f172a;
+  --color-card: #352c37;
   --color-card-foreground: #f8fafc;
 
-  --color-popover: #0f172a;
+  --color-popover: #352c37;
   --color-popover-foreground: #f8fafc;
 
-  --color-primary: #f8fafc;
-  --color-primary-foreground: #0f172a;
+  --color-primary: #ff6b99;
+  --color-primary-foreground: #251e26;
 
-  --color-secondary: #1e293b;
+  --color-secondary: #483a4c;
   --color-secondary-foreground: #f8fafc;
 
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
+  --color-muted: #483a4c;
+  --color-muted-foreground: #c8aeb8;
 
-  --color-accent: #1e293b;
+  --color-accent: #544157;
   --color-accent-foreground: #f8fafc;
 
-  --color-destructive: #7f1d1d;
+  --color-destructive: #e74c3c;
   --color-destructive-foreground: #f8fafc;
 
-  --color-border: #1e293b;
-  --color-input: #1e293b;
-  --color-ring: #cbd5e1;
+  --color-border: #483a4c;
+  --color-input: #483a4c;
+  --color-ring: #ff6b99;
 }
 
 * {
@@ -71,4 +71,76 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Animation utilities */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease-in-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Custom hover effects */
+.hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.hover-scale:hover {
+  transform: scale(1.03);
+}
+
+/* Custom shadows */
+.shadow-soft {
+  box-shadow: 0 4px 20px rgba(232, 74, 127, 0.1);
+}
+
+.shadow-hover {
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.shadow-hover:hover {
+  box-shadow: 0 10px 30px rgba(232, 74, 127, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Pink gradient background */
+.bg-pink-gradient {
+  background: linear-gradient(135deg, #fef5f7 0%, #f7cad5 100%);
+}
+
+/* Pink decoration */
+.decoration-dot::before {
+  content: "";
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(232, 74, 127, 0.15) 0%,
+    rgba(232, 74, 127, 0) 70%
+  );
+  z-index: 0;
 }

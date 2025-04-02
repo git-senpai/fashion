@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { lazy, Suspense, useEffect } from "react";
 import { useCartStore } from "./store/useCartStore";
 import { useWishlistStore } from "./store/useWishlistStore";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Layouts
 import MainLayout from "./layouts/MainLayout";
@@ -96,6 +97,7 @@ function AppContent() {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Toaster position="top-center" richColors />
       <AppContent />
     </Router>

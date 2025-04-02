@@ -13,6 +13,11 @@ export const getAllUsers = async () => {
       throw new Error("Not authorized");
     }
 
+    // Check if user is admin
+    if (!user.isAdmin) {
+      throw new Error("Not authorized as admin");
+    }
+
     const config = {
       headers: {
         Authorization: `Bearer ${user.token}`,

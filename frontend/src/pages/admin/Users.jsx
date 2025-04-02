@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { FiEdit, FiTrash2, FiShield, FiUser } from "react-icons/fi";
 import { getAllUsers, deleteUser } from "../../services/userService";
@@ -10,7 +10,8 @@ import { format } from "date-fns";
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { user: currentUser } = useAuth();
+  const [authError, setAuthError] = useState(false);
+  const { user: currentUser, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchUsers();
@@ -18,10 +19,21 @@ const Users = () => {
 
   const fetchUsers = async () => {
     try {
+      // Check if user is admin before proceeding
+      if (!currentUser || !isAdmin) {
+        setAuthError(true);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const data = await getAllUsers();
       setUsers(data);
     } catch (error) {
+      console.error("Error fetching users:", error);
+      if (error.message.includes("Not authorized as admin")) {
+        setAuthError(true);
+      }
       toast.error(error.message || "Failed to fetch users");
     } finally {
       setLoading(false);
@@ -55,6 +67,12 @@ const Users = () => {
       return "Invalid date";
     }
   };
+
+  // Redirect if not admin
+  if (authError || (!loading && (!currentUser || !isAdmin))) {
+    toast.error("You are not authorized to access the admin users page");
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="container mx-auto p-4">

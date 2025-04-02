@@ -41,6 +41,8 @@ const ProductDetail = () => {
   const [activeTab, setActiveTab] = useState("description");
   const [addingToCart, setAddingToCart] = useState(false);
   const [addingToWishlist, setAddingToWishlist] = useState(false);
+  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [originalPrice, setOriginalPrice] = useState(0);
   const navigate = useNavigate();
 
   // Check if the product is in the wishlist
@@ -54,6 +56,17 @@ const ProductDetail = () => {
         const data = await getProductDetails(id);
         console.log("Product data received:", data);
         setProduct(data);
+
+        // Generate random discount between 5% and 25%
+        const randomDiscount = Math.floor(Math.random() * 21) + 5;
+        setDiscountPercentage(randomDiscount);
+
+        // Calculate original price based on the discount
+        if (data && data.price) {
+          const calculatedOriginalPrice =
+            data.price / (1 - randomDiscount / 100);
+          setOriginalPrice(calculatedOriginalPrice);
+        }
       } catch (error) {
         console.error("Error fetching product:", error);
       } finally {
@@ -273,6 +286,11 @@ const ProductDetail = () => {
               }}
             />
 
+            {/* Discount Tag */}
+            <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
+              {discountPercentage}% OFF
+            </div>
+
             {productImages.length > 1 && (
               <>
                 <button
@@ -347,14 +365,17 @@ const ProductDetail = () => {
 
           {/* Price */}
           <div className="mb-6">
-            <span className="text-2xl font-bold">
-              ${product.price.toFixed(2)}
-            </span>
-            {product.oldPrice && (
-              <span className="ml-2 text-lg text-muted-foreground line-through">
-                ${product.oldPrice.toFixed(2)}
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-[#e84a7f]">
+                ${product.price.toFixed(2)}
               </span>
-            )}
+              <span className="text-lg text-muted-foreground line-through">
+                ${originalPrice.toFixed(2)}
+              </span>
+              <span className="text-sm font-medium text-green-600">
+                Save {discountPercentage}%
+              </span>
+            </div>
           </div>
 
           {/* Stock Status */}

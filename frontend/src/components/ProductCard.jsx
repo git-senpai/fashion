@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FiHeart, FiShoppingCart, FiEye } from "react-icons/fi";
@@ -11,9 +11,12 @@ export const ProductCard = ({ product }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [originalPrice, setOriginalPrice] = useState(0);
   const { addToCart } = useCartStore();
   const { user } = useAuth();
-  const { addToWishlist } = useWishlistStore();
+  const { addToWishlist, isInWishlist } = useWishlistStore();
+  const [inWishlist, setInWishlist] = useState(false);
 
   // Make sure product has default values for required properties
   const safeProduct = {
@@ -26,6 +29,23 @@ export const ProductCard = ({ product }) => {
     image: product?.image || "https://placehold.co/600x400?text=No+Image",
     ...product,
   };
+
+  // Generate random discount on component mount
+  useEffect(() => {
+    // Check if product is already in wishlist
+    if (user && product?._id && isInWishlist) {
+      setInWishlist(isInWishlist(product._id));
+    }
+
+    // Generate random discount between 5% and 25%
+    const randomDiscount = Math.floor(Math.random() * 21) + 5;
+    setDiscountPercentage(randomDiscount);
+
+    // Calculate original price based on the discount
+    const calculatedOriginalPrice =
+      safeProduct.price / (1 - randomDiscount / 100);
+    setOriginalPrice(calculatedOriginalPrice);
+  }, [safeProduct.price, product, user, isInWishlist]);
 
   // Handle different image formats - single image or images array
   const productImages = (() => {
@@ -72,6 +92,7 @@ export const ProductCard = ({ product }) => {
 
     try {
       await addToWishlist(safeProduct);
+      setInWishlist(true);
       // Toast notification is handled inside the addToWishlist function
     } catch (error) {
       console.error("Failed to add to wishlist:", error);
@@ -102,6 +123,11 @@ export const ProductCard = ({ product }) => {
             }}
           />
 
+          {/* Discount Tag */}
+          <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
+            {discountPercentage}% OFF
+          </div>
+
           {/* Image Navigation Dots */}
           {productImages.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center space-x-1">
@@ -123,38 +149,45 @@ export const ProductCard = ({ product }) => {
             </div>
           )}
 
-          {/* Product Actions */}
-          <div
-            className={`absolute right-2 top-2 flex flex-col gap-2 transition-opacity duration-300 ${
-              isHovered ? "opacity-100" : "opacity-0"
-            }`}
-          >
+          {/* Product Actions - Fixed z-index issue */}
+          <div className="absolute right-2 top-2 flex flex-col gap-2 z-20">
             <button
               onClick={handleAddToWishlist}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md transition-colors hover:bg-primary hover:text-white"
+              className={`flex h-8 w-8 items-center justify-center rounded-full shadow-lg transform transition-all duration-300 ${
+                isHovered ? "opacity-100 scale-100" : "opacity-0 scale-90"
+              } ${
+                inWishlist
+                  ? "bg-[#e84a7f] text-white"
+                  : "bg-white text-[#e84a7f] hover:bg-[#e84a7f] hover:text-white"
+              }`}
             >
-              <FiHeart className="h-4 w-4" />
+              <FiHeart className="h-4 w-4 drop-shadow-sm" />
             </button>
             <button
               onClick={handleAddToCart}
               disabled={safeProduct.countInStock === 0 || addingToCart}
-              className={`flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md transition-colors ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full shadow-lg transform transition-all duration-300 ${
+                isHovered ? "opacity-100 scale-100" : "opacity-0 scale-90"
+              } ${
                 safeProduct.countInStock === 0 || addingToCart
-                  ? "cursor-not-allowed opacity-50"
-                  : "hover:bg-primary hover:text-white"
+                  ? "bg-white cursor-not-allowed opacity-50"
+                  : "bg-white text-[#e84a7f] hover:bg-[#e84a7f] hover:text-white"
               }`}
             >
               {addingToCart ? (
-                <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-[#e84a7f] border-t-transparent"></div>
               ) : (
-                <FiShoppingCart className="h-4 w-4" />
+                <FiShoppingCart className="h-4 w-4 drop-shadow-sm" />
               )}
             </button>
             <Link
               to={`/products/${safeProduct._id}`}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md transition-colors hover:bg-primary hover:text-white"
+              className={`flex h-8 w-8 items-center justify-center rounded-full shadow-lg transform transition-all duration-300 ${
+                isHovered ? "opacity-100 scale-100" : "opacity-0 scale-90"
+              } bg-white text-[#e84a7f] hover:bg-[#e84a7f] hover:text-white`}
+              onClick={(e) => e.stopPropagation()}
             >
-              <FiEye className="h-4 w-4" />
+              <FiEye className="h-4 w-4 drop-shadow-sm" />
             </Link>
           </div>
         </div>
@@ -192,13 +225,27 @@ export const ProductCard = ({ product }) => {
             </div>
           </div>
         </div>
-        <div className="mt-2 flex items-center justify-between">
-          <p className="text-lg font-bold">${safeProduct.price.toFixed(2)}</p>
-          {safeProduct.countInStock === 0 ? (
-            <span className="text-xs text-destructive">Out of Stock</span>
-          ) : (
-            <span className="text-xs text-primary">In Stock</span>
-          )}
+        <div className="mt-2 flex flex-col">
+          <div className="flex items-center gap-2">
+            <p className="text-lg font-bold text-[#e84a7f]">
+              ${safeProduct.price.toFixed(2)}
+            </p>
+            <p className="text-sm line-through text-muted-foreground">
+              ${originalPrice.toFixed(2)}
+            </p>
+            <span className="text-xs font-medium text-green-600">
+              Save {discountPercentage}%
+            </span>
+          </div>
+          <div className="flex justify-between items-center mt-1">
+            {safeProduct.countInStock === 0 ? (
+              <span className="text-xs text-destructive">Out of Stock</span>
+            ) : (
+              <span className="text-xs text-green-600 font-medium">
+                In Stock
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

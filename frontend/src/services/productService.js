@@ -368,7 +368,7 @@ export const updateProduct = async (product, token) => {
   }
 };
 
-// Function to get all products (Admin)
+// Admin function to get all products without pagination
 export const getAllProducts = async () => {
   try {
     const { user } = JSON.parse(
@@ -377,6 +377,11 @@ export const getAllProducts = async () => {
 
     if (!user || !user.token) {
       throw new Error("Not authorized");
+    }
+
+    // Check if user is admin
+    if (!user.isAdmin) {
+      throw new Error("Not authorized as admin");
     }
 
     const config = {

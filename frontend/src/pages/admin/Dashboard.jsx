@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   FiUsers,
   FiShoppingBag,
@@ -8,6 +8,7 @@ import {
   FiPackage,
   FiClock,
   FiArrowRight,
+  FiAlertTriangle,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { getOrders } from "../../services/orderService";
@@ -15,9 +16,12 @@ import { getAllUsers } from "../../services/userService";
 import { getAllProducts } from "../../services/productService";
 import { Button } from "../../components/ui/Button";
 import { toast } from "sonner";
+import { useAuth } from "../../hooks/useAuth";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
+  const { user, isAdmin } = useAuth();
   const [stats, setStats] = useState({
     totalSales: 0,
     totalOrders: 0,
@@ -33,18 +37,34 @@ const Dashboard = () => {
       try {
         setLoading(true);
 
+        // Check if user is admin before proceeding
+        if (!user || !isAdmin) {
+          setAuthError(true);
+          setLoading(false);
+          return;
+        }
+
         // Fetch data from APIs with fallbacks for each
         const [orders, users, products] = await Promise.all([
           getOrders().catch((err) => {
             console.error("Error fetching orders:", err);
+            if (err.message.includes("Not authorized as admin")) {
+              setAuthError(true);
+            }
             return [];
           }),
           getAllUsers().catch((err) => {
             console.error("Error fetching users:", err);
+            if (err.message.includes("Not authorized as admin")) {
+              setAuthError(true);
+            }
             return [];
           }),
           getAllProducts().catch((err) => {
             console.error("Error fetching products:", err);
+            if (err.message.includes("Not authorized as admin")) {
+              setAuthError(true);
+            }
             return [];
           }),
         ]);
@@ -89,7 +109,7 @@ const Dashboard = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [user, isAdmin]);
 
   // Format currency
   const formatCurrency = (amount) => {
@@ -122,6 +142,12 @@ const Dashboard = () => {
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  // Redirect if not admin
+  if (authError || (!loading && (!user || !isAdmin))) {
+    toast.error("You are not authorized to access the admin dashboard");
+    return <Navigate to="/" replace />;
+  }
 
   if (loading) {
     return (

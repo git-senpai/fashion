@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { FiEye, FiCheck, FiClock, FiPackage, FiXCircle } from "react-icons/fi";
 import { getOrders, deliverOrder } from "../../services/orderService";
@@ -10,7 +10,8 @@ import { Button } from "../../components/ui/Button";
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const [authError, setAuthError] = useState(false);
+  const { user, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchOrders();
@@ -18,10 +19,21 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
+      // Check if user is admin before proceeding
+      if (!user || !isAdmin) {
+        setAuthError(true);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       const data = await getOrders();
       setOrders(data);
     } catch (error) {
+      console.error("Error fetching orders:", error);
+      if (error.message.includes("Not authorized as admin")) {
+        setAuthError(true);
+      }
       toast.error(error.message || "Failed to fetch orders");
     } finally {
       setLoading(false);
@@ -88,6 +100,12 @@ const Orders = () => {
         return "bg-gray-100 text-gray-800";
     }
   };
+
+  // Redirect if not admin
+  if (authError || (!loading && (!user || !isAdmin))) {
+    toast.error("You are not authorized to access the admin orders page");
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="container mx-auto p-4">
