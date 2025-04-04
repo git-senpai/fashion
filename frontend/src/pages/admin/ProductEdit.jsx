@@ -517,6 +517,31 @@ const ProductEdit = () => {
             </FormGroup>
 
             <FormGroup>
+              <FormLabel htmlFor="discountPercentage">Discount Percentage (%)</FormLabel>
+              <div className="flex items-center">
+                <input
+                  type="number"
+                  id="discountPercentage"
+                  name="discountPercentage"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={product.discountPercentage || 0}
+                  onChange={handleChange}
+                  className="w-full rounded-md border border-input bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <span className="ml-2 text-muted-foreground">%</span>
+              </div>
+              {product.discountPercentage > 0 && (
+                <div className="mt-2">
+                  <span className="text-sm text-muted-foreground">
+                    Final price: ${(product.price * (1 - product.discountPercentage / 100)).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </FormGroup>
+
+            <FormGroup>
               <FormLabel htmlFor="brand">Brand*</FormLabel>
               <input
                 type="text"

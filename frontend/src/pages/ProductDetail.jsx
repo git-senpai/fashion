@@ -49,6 +49,22 @@ const ProductDetail = () => {
   // Check if the product is in the wishlist
   const productInWishlist = product ? isInWishlist(product._id) : false;
 
+  // Calculate original price and savings if there's a discount
+  const calculateOriginalPrice = (price, discount) => {
+    if (discount > 0) {
+      return price / (1 - discount / 100);
+    }
+    return price;
+  };
+
+  const calculateSavings = (price, discount) => {
+    if (discount > 0) {
+      const originalPrice = calculateOriginalPrice(price, discount);
+      return originalPrice - price;
+    }
+    return 0;
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
@@ -58,15 +74,19 @@ const ProductDetail = () => {
         console.log("Product data received:", data);
         setProduct(data);
 
-        // Generate random discount between 5% and 25%
-        const randomDiscount = Math.floor(Math.random() * 21) + 5;
-        setDiscountPercentage(randomDiscount);
+        // Use product's discount percentage or default to 0
+        const discountPercent = data.discountPercentage || 0;
+        setDiscountPercentage(discountPercent);
 
         // Calculate original price based on the discount
-        if (data && data.price) {
-          const calculatedOriginalPrice =
-            data.price / (1 - randomDiscount / 100);
+        if (data && data.price && discountPercent > 0) {
+          // If there's a discount, calculate the original price before discount
+          // Original price = discounted price / (1 - discount/100)
+          const calculatedOriginalPrice = data.price / (1 - discountPercent / 100);
           setOriginalPrice(calculatedOriginalPrice);
+        } else {
+          // If no discount, original price = current price
+          setOriginalPrice(data.price || 0);
         }
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -322,9 +342,11 @@ const ProductDetail = () => {
             />
 
             {/* Discount Tag */}
-            <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
-              {discountPercentage}% OFF
-            </div>
+            {product.discountPercentage > 0 && (
+              <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
+                {product.discountPercentage}% OFF
+              </div>
+            )}
 
             {productImages.length > 1 && (
               <>
@@ -401,16 +423,29 @@ const ProductDetail = () => {
           {/* Price */}
           <div className="mb-6">
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-[#e84a7f]">
-                ${product.price.toFixed(2)}
-              </span>
-              <span className="text-lg text-muted-foreground line-through">
-                ${originalPrice.toFixed(2)}
-              </span>
-              <span className="text-sm font-medium text-green-600">
-                Save {discountPercentage}%
-              </span>
+              {product.discountPercentage > 0 ? (
+                <>
+                  <span className="text-2xl font-bold text-[#e84a7f]">
+                    ${product.price.toFixed(2)}
+                  </span>
+                  <span className="text-lg text-muted-foreground line-through">
+                    ${calculateOriginalPrice(product.price, product.discountPercentage).toFixed(2)}
+                  </span>
+                  <span className="rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                    {product.discountPercentage}% OFF
+                  </span>
+                </>
+              ) : (
+                <span className="text-2xl font-bold">
+                  ${product.price.toFixed(2)}
+                </span>
+              )}
             </div>
+            {product.discountPercentage > 0 && (
+              <div className="mt-1 text-sm text-green-600">
+                You save: ${calculateSavings(product.price, product.discountPercentage).toFixed(2)}
+              </div>
+            )}
           </div>
 
           {/* Stock Status */}

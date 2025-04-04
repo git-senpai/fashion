@@ -12,7 +12,6 @@ export const ProductCard = ({ product }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [addingToCart, setAddingToCart] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(0);
-  const [originalPrice, setOriginalPrice] = useState(0);
   const { addToCart } = useCartStore();
   const { user } = useAuth();
   const { addToWishlist, isInWishlist } = useWishlistStore();
@@ -30,21 +29,16 @@ export const ProductCard = ({ product }) => {
     ...product,
   };
 
-  // Generate random discount on component mount
+  // Use product's discount percentage
   useEffect(() => {
     // Check if product is already in wishlist
     if (user && product?._id && isInWishlist) {
       setInWishlist(isInWishlist(product._id));
     }
 
-    // Generate random discount between 5% and 25%
-    const randomDiscount = Math.floor(Math.random() * 21) + 5;
-    setDiscountPercentage(randomDiscount);
-
-    // Calculate original price based on the discount
-    const calculatedOriginalPrice =
-      safeProduct.price / (1 - randomDiscount / 100);
-    setOriginalPrice(calculatedOriginalPrice);
+    // Get discount percentage from product or default to 0
+    const discount = product?.discountPercentage || 0;
+    setDiscountPercentage(discount);
   }, [safeProduct.price, product, user, isInWishlist]);
 
   // Handle different image formats - single image or images array
@@ -100,6 +94,22 @@ export const ProductCard = ({ product }) => {
     }
   };
 
+  // Calculate original price and savings if there's a discount
+  const calculateOriginalPrice = () => {
+    if (discountPercentage > 0) {
+      return safeProduct.price / (1 - discountPercentage / 100);
+    }
+    return safeProduct.price;
+  };
+
+  const calculateSavings = () => {
+    if (discountPercentage > 0) {
+      const originalPrice = calculateOriginalPrice();
+      return originalPrice - safeProduct.price;
+    }
+    return 0;
+  };
+
   return (
     <motion.div
       className="group relative overflow-hidden rounded-lg border border-border bg-card"
@@ -124,9 +134,11 @@ export const ProductCard = ({ product }) => {
           />
 
           {/* Discount Tag */}
-          <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
-            {discountPercentage}% OFF
-          </div>
+          {discountPercentage > 0 && (
+            <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
+              {discountPercentage}% OFF
+            </div>
+          )}
 
           {/* Image Navigation Dots */}
           {productImages.length > 1 && (
@@ -227,15 +239,23 @@ export const ProductCard = ({ product }) => {
         </div>
         <div className="mt-2 flex flex-col">
           <div className="flex items-center gap-2">
-            <p className="text-lg font-bold text-[#e84a7f]">
-              ${safeProduct.price.toFixed(2)}
-            </p>
-            <p className="text-sm line-through text-muted-foreground">
-              ${originalPrice.toFixed(2)}
-            </p>
-            <span className="text-xs font-medium text-green-600">
-              Save {discountPercentage}%
-            </span>
+            {discountPercentage > 0 ? (
+              <>
+                <p className="text-lg font-bold text-[#e84a7f]">
+                  ${safeProduct.price.toFixed(2)}
+                </p>
+                <p className="text-sm line-through text-muted-foreground">
+                  ${calculateOriginalPrice().toFixed(2)}
+                </p>
+                <span className="text-xs font-medium text-green-600 bg-green-100 px-1 py-0.5 rounded">
+                  -{discountPercentage}%
+                </span>
+              </>
+            ) : (
+              <p className="text-lg font-bold text-[#e84a7f]">
+                ${safeProduct.price.toFixed(2)}
+              </p>
+            )}
           </div>
           <div className="flex justify-between items-center mt-1">
             {safeProduct.countInStock === 0 ? (
@@ -243,6 +263,11 @@ export const ProductCard = ({ product }) => {
             ) : (
               <span className="text-xs text-green-600 font-medium">
                 In Stock
+              </span>
+            )}
+            {discountPercentage > 0 && (
+              <span className="text-xs text-gray-500">
+                Save ${calculateSavings().toFixed(2)}
               </span>
             )}
           </div>

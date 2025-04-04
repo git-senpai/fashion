@@ -73,6 +73,13 @@ const productSchema = mongoose.Schema(
       required: true,
       default: 0,
     },
+    discountPercentage: {
+      type: Number,
+      required: false,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
     sizeQuantities: [sizeQuantitySchema],
     countInStock: {
       type: Number,

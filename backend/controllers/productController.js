@@ -68,6 +68,7 @@ const createProduct = asyncHandler(async (req, res) => {
     brand,
     category,
     sizeQuantities,
+    discountPercentage,
     featured,
   } = req.body;
 
@@ -85,6 +86,7 @@ const createProduct = asyncHandler(async (req, res) => {
     category,
     countInStock,
     sizeQuantities: sizeQuantities || [],
+    discountPercentage: discountPercentage || 0,
     numReviews: 0,
     description,
     featured: featured || false,
@@ -107,6 +109,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     category,
     sizeQuantities,
     countInStock,
+    discountPercentage,
     featured,
   } = req.body;
 
@@ -126,6 +129,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.category = category || product.category;
     product.countInStock = calculatedCountInStock;
     product.sizeQuantities = sizeQuantities || product.sizeQuantities;
+    product.discountPercentage = discountPercentage !== undefined ? discountPercentage : product.discountPercentage;
     product.featured = featured !== undefined ? featured : product.featured;
 
     const updatedProduct = await product.save();

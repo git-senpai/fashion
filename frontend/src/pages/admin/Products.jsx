@@ -162,7 +162,16 @@ const Products = () => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-2">${product.price.toFixed(2)}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <span>${product.price.toFixed(2)}</span>
+                      {product.discountPercentage > 0 && (
+                        <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                          {product.discountPercentage}% off
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-2">{product.category}</td>
                   <td className="px-4 py-2">
                     <span
@@ -179,11 +188,16 @@ const Products = () => {
                         : "Out of stock"}
                     </span>
                     {product.sizeQuantities && product.sizeQuantities.length > 0 && (
-                      <div className="mt-1 text-xs text-gray-500">
-                        {product.sizeQuantities
-                          .filter(sq => sq.quantity > 0)
-                          .map(sq => `${sq.size} (${sq.quantity})`)
-                          .join(', ')}
+                      <div className="mt-1 text-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {product.sizeQuantities
+                            .filter(sq => sq.quantity > 0)
+                            .map(sq => (
+                              <span key={sq.size} className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">
+                                {sq.size}: {sq.quantity}
+                              </span>
+                            ))}
+                        </div>
                       </div>
                     )}
                   </td>
