@@ -10,6 +10,7 @@ const cartRoutes = require("./routes/cartRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const sizeRoutes = require("./routes/sizeRoutes");
+const addressRoutes = require("./routes/addressRoutes");
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");
 
 // Load environment variables
@@ -33,6 +34,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/sizes", sizeRoutes);
+app.use("/api/addresses", addressRoutes);
 
 // Default route
 app.get("/", (req, res) => {

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiCreditCard, FiLock, FiChevronRight } from "react-icons/fi";
+import { FiCreditCard, FiLock, FiChevronRight, FiMapPin } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { useCartStore } from "../store/useCartStore";
 import { useAuth } from "../hooks/useAuth";
 import { createOrder } from "../services/orderService";
+import { getAddresses } from "../services/addressService";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { FormGroup, FormLabel, FormMessage } from "../components/ui/Form";
@@ -19,6 +20,9 @@ const Checkout = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderId, setOrderId] = useState(null);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
 
   const [formData, setFormData] = useState({
     // Shipping info
@@ -54,6 +58,59 @@ const Checkout = () => {
       navigate("/login?redirect=checkout");
     }
   }, [cartItems, isAuthenticated, navigate, orderSuccess]);
+
+  // Fetch saved addresses
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      if (isAuthenticated) {
+        try {
+          setLoadingAddresses(true);
+          const addresses = await getAddresses();
+          setSavedAddresses(addresses);
+          
+          // Set default address if available
+          const defaultAddress = addresses.find(addr => addr.isDefault);
+          if (defaultAddress) {
+            setSelectedAddressId(defaultAddress._id);
+            fillAddressForm(defaultAddress);
+          }
+        } catch (error) {
+          console.error("Error fetching addresses:", error);
+        } finally {
+          setLoadingAddresses(false);
+        }
+      }
+    };
+    
+    fetchAddresses();
+  }, [isAuthenticated]);
+
+  const fillAddressForm = (address) => {
+    setFormData(prev => ({
+      ...prev,
+      firstName: user?.name?.split(' ')[0] || "",
+      lastName: user?.name?.split(' ').slice(1).join(' ') || "",
+      email: user?.email || "",
+      phone: address.phone || "",
+      address: address.streetAddress || "",
+      city: address.city || "",
+      state: address.state || "",
+      zipCode: address.zipCode || "",
+      country: address.country || "United States",
+    }));
+  };
+
+  const handleAddressSelect = (e) => {
+    const addressId = e.target.value;
+    setSelectedAddressId(addressId);
+    
+    if (addressId) {
+      const selectedAddress = savedAddresses.find(addr => addr._id === addressId);
+      if (selectedAddress) {
+        fillAddressForm(selectedAddress);
+      }
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -311,6 +368,47 @@ const Checkout = () => {
                 transition={{ duration: 0.3 }}
               >
                 <h2 className="mb-6 text-xl font-bold">Shipping Information</h2>
+
+                {/* Saved Addresses Dropdown */}
+                {savedAddresses.length > 0 && (
+                  <div className="mb-6">
+                    <FormGroup>
+                      <FormLabel>Use Saved Address</FormLabel>
+                      <div className="flex items-center space-x-2">
+                        <div className="relative flex-grow">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                            <FiMapPin className="h-5 w-5" />
+                          </div>
+                          <select
+                            className="w-full appearance-none rounded-md border border-input bg-background py-2 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            value={selectedAddressId || ""}
+                            onChange={handleAddressSelect}
+                            disabled={loadingAddresses}
+                          >
+                            <option value="">-- Select an address --</option>
+                            {savedAddresses.map((address) => (
+                              <option key={address._id} value={address._id}>
+                                {address.name} ({address.streetAddress}, {address.city})
+                                {address.isDefault ? " (Default)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                            <FiChevronRight className="h-5 w-5 transform rotate-90 text-muted-foreground" />
+                          </div>
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate("/dashboard/address")}
+                        >
+                          Manage
+                        </Button>
+                      </div>
+                    </FormGroup>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormGroup>

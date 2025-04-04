@@ -235,7 +235,7 @@ export const Navbar = () => {
                     
                     <Link
                       to="/wishlist"
-                      className="block rounded-md px-4 py-2.5 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
+                      className=" rounded-md px-4 py-2.5 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
                       onClick={() => setWishlistMenuOpen(false)}
                     >
                       <FiHeart className="mr-2 h-4 w-4" /> All Items

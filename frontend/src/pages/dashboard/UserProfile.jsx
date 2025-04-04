@@ -5,6 +5,7 @@ import { FiUser, FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../../components/ui/Button";
 import { FormGroup, FormLabel, FormMessage } from "../../components/ui/Form";
+import DashboardOverview from "../../components/dashboard/DashboardOverview";
 
 const UserProfile = () => {
   const { user, updateProfile } = useAuth();
@@ -99,6 +100,9 @@ const UserProfile = () => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="mb-6 text-2xl font-bold">My Profile</h1>
+
+      {/* Dashboard Overview */}
+      <DashboardOverview />
 
       {/* Personal Information Section */}
       <div className="mb-8 rounded-lg border border-border bg-card p-6 shadow-sm">

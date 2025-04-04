@@ -6,6 +6,13 @@ import { FiMapPin, FiPlus, FiTrash2, FiEdit2 } from "react-icons/fi";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../../components/ui/Button";
 import { FormGroup, FormLabel, FormMessage } from "../../components/ui/Form";
+import {
+  getAddresses,
+  createAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress,
+} from "../../services/addressService";
 
 const Address = () => {
   const { user } = useAuth();
@@ -13,6 +20,8 @@ const Address = () => {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const {
     register,
@@ -22,81 +31,50 @@ const Address = () => {
     formState: { errors },
   } = useForm();
 
-  // Mock fetch addresses (would be API call in production)
+  // Fetch addresses from API
   useEffect(() => {
-    // In a real app, fetch addresses from API
-    setAddresses([
-      {
-        id: 1,
-        name: "Home",
-        streetAddress: "123 Main St",
-        city: "New York",
-        state: "NY",
-        zipCode: "10001",
-        country: "United States",
-        isDefault: true,
-        phone: "+1 (555) 123-4567",
-      },
-      {
-        id: 2,
-        name: "Office",
-        streetAddress: "456 Business Ave",
-        city: "Chicago",
-        state: "IL",
-        zipCode: "60601",
-        country: "United States",
-        isDefault: false,
-        phone: "+1 (555) 987-6543",
-      },
-    ]);
+    const fetchUserAddresses = async () => {
+      try {
+        setFetchLoading(true);
+        setError(null);
+        const data = await getAddresses();
+        setAddresses(data);
+      } catch (err) {
+        console.error("Error fetching addresses:", err);
+        setError(err.message || "Failed to load addresses");
+        toast.error("Failed to load addresses");
+      } finally {
+        setFetchLoading(false);
+      }
+    };
+
+    fetchUserAddresses();
   }, []);
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data) => {
     setLoading(true);
 
     try {
       if (editingIndex !== null) {
         // Update existing address
+        const addressId = addresses[editingIndex]._id;
+        const updatedAddress = await updateAddress(addressId, data);
+        
+        // Update addresses array with the returned updated address
         const updatedAddresses = [...addresses];
-        updatedAddresses[editingIndex] = {
-          ...updatedAddresses[editingIndex],
-          ...data,
-        };
-
-        // If new default is set, update all others
-        if (data.isDefault) {
-          updatedAddresses.forEach((addr, index) => {
-            if (index !== editingIndex) {
-              addr.isDefault = false;
-            }
-          });
-        }
-
+        updatedAddresses[editingIndex] = updatedAddress;
         setAddresses(updatedAddresses);
+        
         toast.success("Address updated successfully");
       } else {
         // Add new address
-        const newAddress = {
-          id: Date.now(),
-          ...data,
-        };
-
-        // If new default is set, update all others
-        if (data.isDefault) {
-          setAddresses(
-            addresses.map((addr) => ({
-              ...addr,
-              isDefault: false,
-            }))
-          );
-        }
-
+        const newAddress = await createAddress(data);
         setAddresses([...addresses, newAddress]);
         toast.success("Address added successfully");
       }
     } catch (error) {
-      toast.error("Error saving address");
-      console.error(error);
+      console.error("Error saving address:", error);
+      toast.error(error.message || "Failed to save address");
     } finally {
       setLoading(false);
       setIsAddingNew(false);
@@ -108,25 +86,51 @@ const Address = () => {
   const handleEdit = (index) => {
     const address = addresses[index];
     Object.keys(address).forEach((key) => {
-      setValue(key, address[key]);
+      if (key !== '_id' && key !== 'user' && key !== 'createdAt' && key !== 'updatedAt' && key !== '__v') {
+        setValue(key, address[key]);
+      }
     });
     setEditingIndex(index);
     setIsAddingNew(true);
   };
 
-  const handleDelete = (index) => {
-    const updatedAddresses = addresses.filter((_, idx) => idx !== index);
-    setAddresses(updatedAddresses);
-    toast.success("Address removed");
+  const handleDelete = async (index) => {
+    // Add confirmation dialog
+    if (!window.confirm("Are you sure you want to delete this address?")) {
+      return;
+    }
+    
+    try {
+      const addressId = addresses[index]._id;
+      await deleteAddress(addressId);
+      
+      const updatedAddresses = addresses.filter((_, idx) => idx !== index);
+      setAddresses(updatedAddresses);
+      
+      toast.success("Address removed successfully");
+    } catch (error) {
+      console.error("Error deleting address:", error);
+      toast.error(error.message || "Failed to delete address");
+    }
   };
 
-  const handleSetDefault = (index) => {
-    const updatedAddresses = addresses.map((address, idx) => ({
-      ...address,
-      isDefault: idx === index,
-    }));
-    setAddresses(updatedAddresses);
-    toast.success("Default address updated");
+  const handleSetDefault = async (index) => {
+    try {
+      const addressId = addresses[index]._id;
+      await setDefaultAddress(addressId);
+      
+      // Update local state to reflect the change
+      const updatedAddresses = addresses.map((address, idx) => ({
+        ...address,
+        isDefault: idx === index,
+      }));
+      
+      setAddresses(updatedAddresses);
+      toast.success("Default address updated");
+    } catch (error) {
+      console.error("Error setting default address:", error);
+      toast.error(error.message || "Failed to set default address");
+    }
   };
 
   const cancelForm = () => {
@@ -313,7 +317,23 @@ const Address = () => {
         </motion.div>
       ) : null}
 
-      {addresses.length === 0 && !isAddingNew ? (
+      {fetchLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+          <p className="ml-2 text-md">Loading addresses...</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-border py-16 text-center">
+          <div className="mb-4 rounded-full bg-destructive/10 p-4">
+            <FiMapPin className="h-8 w-8 text-destructive" />
+          </div>
+          <h2 className="mb-2 text-xl font-semibold">Error Loading Addresses</h2>
+          <p className="mb-6 max-w-md text-muted-foreground">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
+      ) : addresses.length === 0 && !isAddingNew ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-border py-16 text-center">
           <div className="mb-4 rounded-full bg-muted p-4">
             <FiMapPin className="h-8 w-8 text-muted-foreground" />
@@ -332,7 +352,7 @@ const Address = () => {
         <div className="grid gap-6 md:grid-cols-2">
           {addresses.map((address, index) => (
             <motion.div
-              key={address.id}
+              key={address._id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-lg border border-border bg-card p-6 shadow-sm"
