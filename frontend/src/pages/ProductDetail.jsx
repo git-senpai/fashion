@@ -6,6 +6,8 @@ import {
   FiStar,
   FiChevronRight,
   FiChevronLeft,
+  FiUpload,
+  FiX,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import {
@@ -36,7 +38,10 @@ const ProductDetail = () => {
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
     comment: "",
+    images: [],
   });
+  const [reviewImages, setReviewImages] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [activeTab, setActiveTab] = useState("description");
@@ -188,6 +193,69 @@ const ProductDetail = () => {
     });
   };
 
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    
+    if (files.length === 0) return;
+    
+    // Limit to 5 images total
+    if (previewImages.length + files.length > 5) {
+      toast.error("You can upload a maximum of 5 images per review");
+      return;
+    }
+    
+    // Create preview URLs and add files to state
+    const newPreviewImages = [...previewImages];
+    const newReviewImages = [...reviewImages];
+    
+    files.forEach(file => {
+      // Validate file type
+      if (!file.type.match('image.*')) {
+        toast.error(`File ${file.name} is not an image`);
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`Image ${file.name} exceeds 5MB size limit`);
+        return;
+      }
+      
+      const previewUrl = URL.createObjectURL(file);
+      newPreviewImages.push(previewUrl);
+      newReviewImages.push(file);
+    });
+    
+    setPreviewImages(newPreviewImages);
+    setReviewImages(newReviewImages);
+    
+    // Update review form
+    setReviewForm({
+      ...reviewForm,
+      images: newReviewImages,
+    });
+  };
+
+  const removeImage = (index) => {
+    // Release object URL to avoid memory leaks
+    URL.revokeObjectURL(previewImages[index]);
+    
+    const newPreviewImages = [...previewImages];
+    const newReviewImages = [...reviewImages];
+    
+    newPreviewImages.splice(index, 1);
+    newReviewImages.splice(index, 1);
+    
+    setPreviewImages(newPreviewImages);
+    setReviewImages(newReviewImages);
+    
+    // Update review form
+    setReviewForm({
+      ...reviewForm,
+      images: newReviewImages,
+    });
+  };
+
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!reviewForm.comment.trim()) {
@@ -204,7 +272,17 @@ const ProductDetail = () => {
         return;
       }
 
-      await createProductReview(id, reviewForm, user.token);
+      // Create FormData to send text fields and images
+      const formData = new FormData();
+      formData.append('rating', reviewForm.rating);
+      formData.append('comment', reviewForm.comment);
+      
+      // Append each image to the form data
+      reviewImages.forEach((image, index) => {
+        formData.append('images', image);
+      });
+
+      await createProductReview(id, formData, user.token);
       toast.success("Review submitted successfully");
 
       // Refetch product to get updated reviews
@@ -215,7 +293,10 @@ const ProductDetail = () => {
       setReviewForm({
         rating: 5,
         comment: "",
+        images: [],
       });
+      setReviewImages([]);
+      setPreviewImages([]);
     } catch (error) {
       console.error("Error submitting review:", error);
       setReviewError(
@@ -679,6 +760,49 @@ const ProductDetail = () => {
                           <FormMessage>{reviewError}</FormMessage>
                         )}
                       </FormGroup>
+                      
+                      {/* Image Upload Section */}
+                      <FormGroup>
+                        <FormLabel>Add Photos (optional - max 5)</FormLabel>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {/* Show preview of uploaded images */}
+                          {previewImages.map((preview, index) => (
+                            <div key={index} className="relative h-20 w-20 rounded-md overflow-hidden group">
+                              <img 
+                                src={preview} 
+                                alt={`Review upload ${index + 1}`} 
+                                className="h-full w-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeImage(index)}
+                                className="absolute top-1 right-1 rounded-full bg-foreground/50 p-1 text-white hover:bg-foreground transition-colors"
+                              >
+                                <FiX size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          
+                          {/* Upload button (only show if less than 5 images) */}
+                          {previewImages.length < 5 && (
+                            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-colors">
+                              <FiUpload className="mb-1 h-6 w-6 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">Upload</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleImageUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: JPG, PNG, GIF (max 5MB each)
+                        </p>
+                      </FormGroup>
+                      
                       <Button type="submit" disabled={reviewSubmitting}>
                         {reviewSubmitting ? "Submitting..." : "Submit Review"}
                       </Button>
@@ -695,7 +819,7 @@ const ProductDetail = () => {
                   </div>
                 )}
 
-                {/* Reviews List */}
+                {/* Reviews List - Update to show review images */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Customer Reviews</h3>
 
@@ -733,7 +857,24 @@ const ProductDetail = () => {
                               {new Date(review.createdAt).toLocaleDateString()}
                             </span>
                           </div>
-                          <p className="text-sm">{review.comment}</p>
+                          <p className="text-sm mb-3">{review.comment}</p>
+                          
+                          {/* Display review images if available */}
+                          {review.images && review.images.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {review.images.map((image, index) => (
+                                <div key={index} className="h-20 w-20 rounded-md overflow-hidden">
+                                  <img 
+                                    src={image} 
+                                    alt={`Review image ${index + 1}`} 
+                                    className="h-full w-full object-cover"
+                                    onClick={() => window.open(image, '_blank')}
+                                    style={{ cursor: 'pointer' }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

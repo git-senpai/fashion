@@ -38,6 +38,7 @@ const ProductEdit = () => {
     image: "",
     images: [],
     sizeQuantities: [],
+    discountPercentage: 0,
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -109,6 +110,7 @@ const ProductEdit = () => {
             description: "",
             images: [],
             sizeQuantities: [],
+            discountPercentage: 0,
           });
           setLoading(false);
           return;
@@ -135,6 +137,7 @@ const ProductEdit = () => {
           ...data,
           images: productImages,
           sizeQuantities: sizeQtys,
+          discountPercentage: data.discountPercentage || 0,
         });
       } catch (err) {
         setError(err.message || "Failed to load product details");

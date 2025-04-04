@@ -1,5 +1,14 @@
 const asyncHandler = require("express-async-handler");
 const Product = require("../models/productModel");
+const cloudinary = require("cloudinary").v2;
+const fs = require("fs");
+
+// Configure Cloudinary (assuming it's already set up in uploadController)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // @desc    Fetch all products
 // @route   GET /api/products
@@ -77,6 +86,12 @@ const createProduct = asyncHandler(async (req, res) => {
     ? sizeQuantities.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
     : 0;
 
+  // Ensure discountPercentage is properly parsed as a number
+  const parsedDiscountPercentage = discountPercentage !== undefined ? 
+    Number(discountPercentage) : 0;
+
+  console.log('Creating product with discount percentage:', parsedDiscountPercentage);
+
   const product = new Product({
     name,
     price,
@@ -86,7 +101,7 @@ const createProduct = asyncHandler(async (req, res) => {
     category,
     countInStock,
     sizeQuantities: sizeQuantities || [],
-    discountPercentage: discountPercentage || 0,
+    discountPercentage: parsedDiscountPercentage,
     numReviews: 0,
     description,
     featured: featured || false,
@@ -145,39 +160,79 @@ const updateProduct = asyncHandler(async (req, res) => {
 // @access  Private
 const createProductReview = asyncHandler(async (req, res) => {
   const { rating, comment } = req.body;
+  const uploadedImageUrls = [];
 
-  const product = await Product.findById(req.params.id);
-
-  if (product) {
-    const alreadyReviewed = product.reviews.find(
-      (r) => r.user.toString() === req.user._id.toString()
-    );
-
-    if (alreadyReviewed) {
-      res.status(400);
-      throw new Error("Product already reviewed");
+  try {
+    // Check if there are uploaded files
+    if (req.files && req.files.length > 0) {
+      // Upload each image to Cloudinary
+      for (const file of req.files) {
+        try {
+          const result = await cloudinary.uploader.upload(file.path, {
+            folder: "fashion_ecommerce/reviews",
+            width: 1200,
+            crop: "limit"
+          });
+  
+          uploadedImageUrls.push(result.secure_url);
+  
+          // Clean up local file after successful upload
+          fs.unlinkSync(file.path);
+        } catch (uploadErr) {
+          console.error("Error uploading image to Cloudinary:", uploadErr);
+          
+          // Clean up local file if upload failed
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        }
+      }
     }
-
-    const review = {
-      name: req.user.name,
-      rating: Number(rating),
-      comment,
-      user: req.user._id,
-    };
-
-    product.reviews.push(review);
-
-    product.numReviews = product.reviews.length;
-
-    product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length;
-
-    await product.save();
-    res.status(201).json({ message: "Review added" });
-  } else {
-    res.status(404);
-    throw new Error("Product not found");
+  
+    const product = await Product.findById(req.params.id);
+  
+    if (product) {
+      const alreadyReviewed = product.reviews.find(
+        (r) => r.user.toString() === req.user._id.toString()
+      );
+  
+      if (alreadyReviewed) {
+        res.status(400);
+        throw new Error("Product already reviewed");
+      }
+  
+      const review = {
+        name: req.user.name,
+        rating: Number(rating),
+        comment,
+        user: req.user._id,
+        images: uploadedImageUrls
+      };
+  
+      product.reviews.push(review);
+  
+      product.numReviews = product.reviews.length;
+  
+      product.rating =
+        product.reviews.reduce((acc, item) => item.rating + acc, 0) /
+        product.reviews.length;
+  
+      await product.save();
+      res.status(201).json({ message: "Review added" });
+    } else {
+      res.status(404);
+      throw new Error("Product not found");
+    }
+  } catch (error) {
+    // Clean up any uploaded files if they exist
+    if (req.files) {
+      for (const file of req.files) {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      }
+    }
+    throw error;
   }
 });
 

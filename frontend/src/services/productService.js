@@ -149,16 +149,24 @@ export const getFeaturedProducts = async () => {
 };
 
 // Function to create a product review
-export const createProductReview = async (productId, review, token) => {
+export const createProductReview = async (productId, reviewData, token) => {
   try {
+    // Check if reviewData is FormData (contains images) or just JSON data
+    const isFormData = reviewData instanceof FormData;
+    
     const config = {
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
     };
+    
+    // If not FormData, set Content-Type to application/json
+    if (!isFormData) {
+      config.headers["Content-Type"] = "application/json";
+    }
+    // For FormData, the browser will automatically set the correct Content-Type with boundary
 
-    await axios.post(`/api/products/${productId}/reviews`, review, config);
+    await axios.post(`/api/products/${productId}/reviews`, reviewData, config);
   } catch (error) {
     throw new Error(error.response?.data?.message || error.message);
   }
@@ -304,6 +312,7 @@ export const createProduct = async (productData, token) => {
       countInStock: Number(productToCreate.countInStock || 0),
       images: productToCreate.images || [],
       sizeQuantities: productToCreate.sizeQuantities || [],
+      discountPercentage: Number(productToCreate.discountPercentage || 0),
     };
 
     console.log("Creating product with data:", newProduct);
