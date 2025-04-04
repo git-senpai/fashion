@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import {
   getProductDetails,
   createProductReview,
+  getProducts,
 } from "../services/productService";
 import { useCartStore } from "../store/useCartStore";
 import { useWishlistStore } from "../store/useWishlistStore";
@@ -20,6 +21,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { FormGroup, FormLabel, FormMessage } from "../components/ui/Form";
+import { ProductCard } from "../components/ProductCard";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { toast } from "sonner";
@@ -49,6 +51,8 @@ const ProductDetail = () => {
   const [addingToWishlist, setAddingToWishlist] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(0);
   const [originalPrice, setOriginalPrice] = useState(0);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
   const navigate = useNavigate();
 
   // Check if the product is in the wishlist
@@ -93,6 +97,11 @@ const ProductDetail = () => {
           // If no discount, original price = current price
           setOriginalPrice(data.price || 0);
         }
+
+        // Fetch related products from the same category
+        if (data && data.category) {
+          fetchRelatedProducts(data.category, data._id);
+        }
       } catch (error) {
         console.error("Error fetching product:", error);
       } finally {
@@ -102,6 +111,26 @@ const ProductDetail = () => {
 
     fetchProduct();
   }, [id]);
+
+  // Function to fetch related products from the same category
+  const fetchRelatedProducts = async (category, currentProductId) => {
+    try {
+      setLoadingRelated(true);
+      // Query products by category
+      const result = await getProducts("", "", category);
+      
+      // Filter out the current product and limit to 4 related products
+      const filtered = result.products
+        .filter(prod => prod._id !== currentProductId)
+        .slice(0, 4);
+      
+      setRelatedProducts(filtered);
+    } catch (error) {
+      console.error("Error fetching related products:", error);
+    } finally {
+      setLoadingRelated(false);
+    }
+  };
 
   const handleAddToCart = async () => {
     try {
@@ -886,6 +915,27 @@ const ProductDetail = () => {
             )}
           </div>
         </div>
+      </div>
+      
+      {/* Related Products Section */}
+      <div className="mt-16">
+        <h2 className="mb-6 text-2xl font-bold">Related Products</h2>
+        
+        {loadingRelated ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} height={350} className="rounded-lg" />
+            ))}
+          </div>
+        ) : relatedProducts.length > 0 ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {relatedProducts.map((relatedProduct) => (
+              <ProductCard key={relatedProduct._id} product={relatedProduct} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground">No related products found.</p>
+        )}
       </div>
     </div>
   );

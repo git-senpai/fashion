@@ -1,14 +1,18 @@
 import axios from "axios";
 
 // Function to get all products
-export const getProducts = async (keyword = "", pageNumber = "") => {
+export const getProducts = async (keyword = "", pageNumber = "", category = "") => {
   try {
-    console.log(
-      `Calling API: /api/products?keyword=${keyword}&pageNumber=${pageNumber}`
-    );
-    const { data } = await axios.get(
-      `/api/products?keyword=${keyword}&pageNumber=${pageNumber}`
-    );
+    const queryParams = new URLSearchParams();
+    if (keyword) queryParams.append("keyword", keyword);
+    if (pageNumber) queryParams.append("pageNumber", pageNumber);
+    if (category) queryParams.append("category", category);
+    
+    const queryString = queryParams.toString();
+    const url = `/api/products${queryString ? `?${queryString}` : ''}`;
+    
+    console.log(`Calling API: ${url}`);
+    const { data } = await axios.get(url);
 
     console.log("API response data:", data);
 

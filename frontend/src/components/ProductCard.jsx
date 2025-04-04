@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiHeart, FiShoppingCart, FiEye } from "react-icons/fi";
+import { FiHeart, FiShoppingCart, FiEye, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { useCartStore } from "../store/useCartStore";
 import { useAuth } from "../hooks/useAuth";
@@ -12,6 +12,10 @@ export const ProductCard = ({ product }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [addingToCart, setAddingToCart] = useState(false);
   const [discountPercentage, setDiscountPercentage] = useState(0);
+  const [showSizeSelector, setShowSizeSelector] = useState(false);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const sizeSelectorRef = useRef(null);
   const { addToCart } = useCartStore();
   const { user } = useAuth();
   const { addToWishlist, isInWishlist } = useWishlistStore();
@@ -29,6 +33,9 @@ export const ProductCard = ({ product }) => {
     ...product,
   };
 
+  // Check if product has size options
+  const hasSizes = safeProduct.sizeQuantities && safeProduct.sizeQuantities.length > 0;
+
   // Use product's discount percentage
   useEffect(() => {
     // Check if product is already in wishlist
@@ -40,6 +47,20 @@ export const ProductCard = ({ product }) => {
     const discount = product?.discountPercentage || 0;
     setDiscountPercentage(discount);
   }, [safeProduct.price, product, user, isInWishlist]);
+
+  // Close size selector when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sizeSelectorRef.current && !sizeSelectorRef.current.contains(event.target)) {
+        setShowSizeSelector(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Handle different image formats - single image or images array
   const productImages = (() => {
@@ -63,16 +84,60 @@ export const ProductCard = ({ product }) => {
 
     if (addingToCart) return;
 
+    // Check if the product has sizes
+    if (hasSizes) {
+      // Show size selector instead of immediately adding to cart
+      setShowSizeSelector(true);
+      return;
+    }
+
+    // If no sizes, add to cart directly
+    await addItemToCart();
+  };
+
+  const addItemToCart = async (size = null) => {
     setAddingToCart(true);
     try {
-      await addToCart(safeProduct);
+      // Create cart item with the selected size if available
+      const cartItem = {
+        productId: safeProduct._id,
+        name: safeProduct.name,
+        image: productImages[0],
+        price: safeProduct.price,
+        countInStock: safeProduct.countInStock,
+        quantity: selectedQuantity,
+        size: size,
+      };
+
+      await addToCart(cartItem);
       // Toast notification is handled inside the addToCart function
+      
+      // Reset states
+      setShowSizeSelector(false);
+      setSelectedSize("");
+      setSelectedQuantity(1);
     } catch (error) {
       console.error("Failed to add to cart:", error);
       toast.error(error.message || "Failed to add to cart");
     } finally {
       setAddingToCart(false);
     }
+  };
+
+  const handleSizeSelection = async (size) => {
+    if (!size) return;
+    
+    // Find the selected size info
+    const sizeInfo = safeProduct.sizeQuantities.find(sq => sq.size === size);
+    
+    // Check if the size is available
+    if (!sizeInfo || sizeInfo.quantity <= 0) {
+      toast.error(`Size ${size} is out of stock`);
+      return;
+    }
+    
+    setSelectedSize(size);
+    await addItemToCart(size);
   };
 
   const handleAddToWishlist = async (e) => {
@@ -161,7 +226,7 @@ export const ProductCard = ({ product }) => {
             </div>
           )}
 
-          {/* Product Actions - Fixed z-index issue */}
+          {/* Product Actions */}
           <div className="absolute right-2 top-2 flex flex-col gap-2 z-20">
             <button
               onClick={handleAddToWishlist}
@@ -202,6 +267,58 @@ export const ProductCard = ({ product }) => {
               <FiEye className="h-4 w-4 drop-shadow-sm" />
             </Link>
           </div>
+          
+          {/* Size Selector Modal */}
+          {showSizeSelector && hasSizes && (
+            <div 
+              className="absolute inset-0 bg-black/70 flex items-center justify-center z-30"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <div 
+                ref={sizeSelectorRef}
+                className="bg-white rounded-lg p-4 max-w-xs w-full mx-4"
+              >
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-sm">Select a Size</h3>
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowSizeSelector(false);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <FiX size={18} />
+                  </button>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {safeProduct.sizeQuantities
+                    .filter(sq => sq.quantity > 0)
+                    .map((sizeQty) => (
+                      <button
+                        key={sizeQty.size}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleSizeSelection(sizeQty.size);
+                        }}
+                        className="min-w-[40px] h-8 px-2 border border-gray-300 rounded-md text-sm hover:border-[#e84a7f] hover:bg-[#e84a7f]/10 transition-colors"
+                      >
+                        {sizeQty.size}
+                      </button>
+                    ))}
+                </div>
+                
+                {safeProduct.sizeQuantities.filter(sq => sq.quantity > 0).length === 0 && (
+                  <p className="text-sm text-red-500 mb-4">All sizes are out of stock</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Link>
 
