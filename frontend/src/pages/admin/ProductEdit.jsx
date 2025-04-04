@@ -7,6 +7,8 @@ import {
   FiCamera,
   FiXCircle,
   FiPlus,
+  FiMinus,
+  FiTrash2,
 } from "react-icons/fi";
 import {
   getProductDetails,
@@ -14,6 +16,7 @@ import {
   createProduct,
 } from "../../services/productService";
 import categoryService from "../../services/categoryService";
+import sizeService from "../../services/sizeService";
 import { uploadImage } from "../../services/uploadService";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../../components/ui/Button";
@@ -34,12 +37,17 @@ const ProductEdit = () => {
     description: "",
     image: "",
     images: [],
+    sizeQuantities: [],
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [error, setError] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [sizes, setSizes] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingSizes, setLoadingSizes] = useState(false);
+  const [multipleImageFiles, setMultipleImageFiles] = useState([]);
+  const [multipleImagePreviews, setMultipleImagePreviews] = useState([]);
 
   // Fetch categories
   useEffect(() => {
@@ -57,6 +65,24 @@ const ProductEdit = () => {
     };
 
     fetchCategories();
+  }, []);
+
+  // Fetch sizes
+  useEffect(() => {
+    const fetchSizes = async () => {
+      try {
+        setLoadingSizes(true);
+        const data = await sizeService.getSizes();
+        setSizes(data);
+      } catch (err) {
+        console.error("Error fetching sizes:", err);
+        toast.error("Failed to load sizes");
+      } finally {
+        setLoadingSizes(false);
+      }
+    };
+
+    fetchSizes();
   }, []);
 
   // Fetch product details
@@ -82,6 +108,7 @@ const ProductEdit = () => {
             countInStock: 0,
             description: "",
             images: [],
+            sizeQuantities: [],
           });
           setLoading(false);
           return;
@@ -98,9 +125,16 @@ const ProductEdit = () => {
           productImages = [data.image];
         }
 
+        // Ensure sizeQuantities is an array
+        let sizeQtys = [];
+        if (data.sizeQuantities && Array.isArray(data.sizeQuantities)) {
+          sizeQtys = data.sizeQuantities;
+        }
+
         setProduct({
           ...data,
           images: productImages,
+          sizeQuantities: sizeQtys,
         });
       } catch (err) {
         setError(err.message || "Failed to load product details");
@@ -124,6 +158,24 @@ const ProductEdit = () => {
     }
 
     setProduct({ ...product, [name]: parsedValue });
+  };
+
+  // Handle multiple image uploads
+  const handleMultipleImageUpload = (e) => {
+    const newFiles = Array.from(e.target.files);
+    if (newFiles.length === 0) return;
+    
+    // Store files for upload during form submission by adding to existing ones
+    setMultipleImageFiles(prevFiles => [...prevFiles, ...newFiles]);
+    
+    // Create preview URLs for each new file and add to existing previews
+    const newPreviewUrls = newFiles.map(file => URL.createObjectURL(file));
+    setMultipleImagePreviews(prevPreviews => [...prevPreviews, ...newPreviewUrls]);
+    
+    // Reset the file input so the same files can be selected again if needed
+    e.target.value = '';
+    
+    toast.success(`${newFiles.length} image${newFiles.length > 1 ? 's' : ''} selected`);
   };
 
   // Handle main image upload preview
@@ -153,6 +205,72 @@ const ProductEdit = () => {
     });
 
     toast.success("Image removed from product gallery");
+  };
+
+  // Add a size to the product
+  const handleAddSize = (sizeId) => {
+    if (!sizeId) return;
+    
+    const sizeName = sizes.find(size => size._id === sizeId)?.name;
+    
+    if (!sizeName) return;
+    
+    // Check if this size already exists
+    const sizeExists = product.sizeQuantities.some(sq => sq.size === sizeName);
+    
+    if (sizeExists) {
+      toast.error(`Size ${sizeName} is already added to this product`);
+      return;
+    }
+    
+    // Add the new size with zero quantity
+    const updatedSizeQuantities = [
+      ...product.sizeQuantities,
+      { size: sizeName, quantity: 0 }
+    ];
+    
+    setProduct({
+      ...product,
+      sizeQuantities: updatedSizeQuantities
+    });
+    
+    toast.success(`Size ${sizeName} added to product`);
+  };
+  
+  // Update quantity for a specific size
+  const handleSizeQuantityChange = (sizeName, quantity) => {
+    const numQuantity = parseInt(quantity) || 0;
+    
+    if (numQuantity < 0) {
+      toast.error("Quantity cannot be negative");
+      return;
+    }
+    
+    const updatedSizeQuantities = product.sizeQuantities.map(sq => 
+      sq.size === sizeName ? { ...sq, quantity: numQuantity } : sq
+    );
+    
+    setProduct({
+      ...product,
+      sizeQuantities: updatedSizeQuantities
+    });
+  };
+  
+  // Remove a size from the product
+  const handleRemoveSize = (sizeName) => {
+    const updatedSizeQuantities = product.sizeQuantities.filter(
+      sq => sq.size !== sizeName
+    );
+    
+    setProduct({
+      ...product,
+      sizeQuantities: updatedSizeQuantities
+    });
+  };
+
+  // Calculate total stock from size quantities
+  const calculateTotalStock = () => {
+    return product.sizeQuantities.reduce((total, sq) => total + Number(sq.quantity), 0);
   };
 
   // Handle form submission
@@ -197,8 +315,27 @@ const ProductEdit = () => {
       }
 
       // Check if product has at least one image
-      if ((!product.images || product.images.length === 0) && !imageFile) {
+      if (
+        (!product.images || product.images.length === 0) && 
+        !imageFile && 
+        multipleImageFiles.length === 0
+      ) {
         toast.error("At least one product image is required");
+        setSaving(false);
+        return;
+      }
+      
+      // Validate that at least one size is added with stock
+      if (!product.sizeQuantities || product.sizeQuantities.length === 0) {
+        toast.error("At least one size with quantity must be added");
+        setSaving(false);
+        return;
+      }
+      
+      // Validate that total stock is greater than zero
+      const totalStock = calculateTotalStock();
+      if (totalStock <= 0) {
+        toast.error("Total inventory must be greater than zero");
         setSaving(false);
         return;
       }
@@ -207,27 +344,69 @@ const ProductEdit = () => {
       const updatedProduct = {
         ...product,
         price: Number(product.price || 0),
-        countInStock: Number(product.countInStock || 0),
+        countInStock: totalStock,
       };
 
       console.log("Product data before save:", updatedProduct);
 
-      // Handle image upload if there's a new image
-      if (imageFile) {
+      // Handle image uploads
+      let uploadedImageUrls = [...(updatedProduct.images || [])];
+      
+      // Upload multiple images if present
+      if (multipleImageFiles.length > 0) {
+        toast.info(`Uploading ${multipleImageFiles.length} images...`);
+        
+        try {
+          // Upload each image sequentially
+          const uploadPromises = multipleImageFiles.map(async (imageFile) => {
+            try {
+              const uploadResult = await uploadImage(imageFile, user.token);
+              if (uploadResult && uploadResult.image) {
+                // Add the image to the images array if it's not already there
+                if (!uploadedImageUrls.includes(uploadResult.image)) {
+                  return uploadResult.image;
+                }
+              }
+              return null;
+            } catch (error) {
+              console.error(`Error uploading image ${imageFile.name}:`, error);
+              // Don't throw, just return null and continue with other images
+              return null;
+            }
+          });
+          
+          // Wait for all uploads to complete
+          const uploadedImages = await Promise.all(uploadPromises);
+          
+          // Filter out null results (failed uploads)
+          const successfulUploads = uploadedImages.filter(img => img !== null);
+          
+          // Add successful uploads to the image URLs array
+          uploadedImageUrls = [...uploadedImageUrls, ...successfulUploads];
+          
+          // Show success/failure message
+          if (successfulUploads.length === multipleImageFiles.length) {
+            toast.success(`All ${successfulUploads.length} images uploaded successfully`);
+          } else {
+            toast.warning(`Uploaded ${successfulUploads.length} out of ${multipleImageFiles.length} images`);
+          }
+        } catch (uploadError) {
+          console.error("Error during image upload process:", uploadError);
+          toast.error("Failed to upload some product images");
+          setSaving(false);
+          return;
+        }
+      }
+      
+      // Handle single image upload if present
+      else if (imageFile) {
         try {
           const uploadResult = await uploadImage(imageFile, user.token);
           if (uploadResult && uploadResult.image) {
             // Add the image to the images array
-            const currentImages = Array.isArray(updatedProduct.images)
-              ? [...updatedProduct.images]
-              : [];
-
-            // Don't add duplicate images
-            if (!currentImages.includes(uploadResult.image)) {
-              currentImages.push(uploadResult.image);
+            if (!uploadedImageUrls.includes(uploadResult.image)) {
+              uploadedImageUrls.push(uploadResult.image);
             }
-
-            updatedProduct.images = currentImages;
           }
         } catch (uploadError) {
           console.error("Error uploading image:", uploadError);
@@ -237,10 +416,8 @@ const ProductEdit = () => {
         }
       }
 
-      // Ensure images array is valid
-      if (!Array.isArray(updatedProduct.images)) {
-        updatedProduct.images = [];
-      }
+      // Ensure images array is valid and update the product object
+      updatedProduct.images = uploadedImageUrls.length > 0 ? uploadedImageUrls : [];
 
       // Make sure images array is not empty
       if (updatedProduct.images.length === 0) {
@@ -254,12 +431,12 @@ const ProductEdit = () => {
         // Create new product
         console.log("Creating new product with data:", updatedProduct);
         result = await createProduct(updatedProduct, user.token);
-        toast.success("Product created successfully");
+        toast.success("Product created successfully with size inventory");
       } else {
         // Update existing product
         console.log("Updating product with data:", updatedProduct);
         result = await updateProduct(updatedProduct, user.token);
-        toast.success("Product updated successfully");
+        toast.success("Product updated successfully with size inventory");
       }
 
       // Redirect back to products list
@@ -340,20 +517,6 @@ const ProductEdit = () => {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel htmlFor="countInStock">Count in Stock*</FormLabel>
-              <input
-                type="number"
-                id="countInStock"
-                name="countInStock"
-                min="0"
-                value={product.countInStock}
-                onChange={handleChange}
-                className="w-full rounded-md border border-input bg-background p-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                required
-              />
-            </FormGroup>
-
-            <FormGroup>
               <FormLabel htmlFor="brand">Brand*</FormLabel>
               <input
                 type="text"
@@ -367,7 +530,7 @@ const ProductEdit = () => {
             </FormGroup>
 
             <FormGroup>
-              <FormLabel htmlFor="category">Category</FormLabel>
+              <FormLabel htmlFor="category">Category*</FormLabel>
               <select
                 id="category"
                 name="category"
@@ -402,89 +565,218 @@ const ProductEdit = () => {
                 </FormMessage>
               )}
             </FormGroup>
+
+            <FormGroup>
+              <FormLabel>Sizes & Inventory*</FormLabel>
+              <div className="border border-input rounded-md p-4 space-y-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    onChange={(e) => handleAddSize(e.target.value)}
+                    value=""
+                  >
+                    <option value="">Add a size...</option>
+                    {sizes
+                      .filter(size => size.isActive !== false) // Only show active sizes
+                      .filter(size => !product.sizeQuantities.some(sq => sq.size === size.name)) // Filter out already added sizes
+                      .map((size) => (
+                        <option key={size._id} value={size._id}>
+                          {size.name}
+                        </option>
+                      ))}
+                  </select>
+                  {loadingSizes && (
+                    <p className="text-sm text-muted-foreground">
+                      Loading sizes...
+                    </p>
+                  )}
+                  {sizes.length === 0 && !loadingSizes && (
+                    <FormMessage>
+                      No sizes found.{" "}
+                      <a href="/admin/sizes" className="text-primary underline">
+                        Create a size
+                      </a>{" "}
+                      first.
+                    </FormMessage>
+                  )}
+                </div>
+
+                {product.sizeQuantities.length > 0 ? (
+                  <div className="space-y-2 mt-4">
+                    <div className="grid grid-cols-12 gap-2 px-2 py-1 font-medium text-sm text-gray-500">
+                      <div className="col-span-5">Size</div>
+                      <div className="col-span-5 text-center">Stock Quantity</div>
+                      <div className="col-span-2 text-right">Action</div>
+                    </div>
+                    
+                    {product.sizeQuantities.map((sizeQty, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-12 gap-2 items-center p-3 border border-input rounded-md bg-muted/20 hover:bg-muted/30 transition"
+                      >
+                        <div className="col-span-5 font-medium">{sizeQty.size}</div>
+                        <div className="col-span-5">
+                          <div className="flex items-center">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const currentQty = parseInt(sizeQty.quantity) || 0;
+                                if (currentQty > 0) {
+                                  handleSizeQuantityChange(sizeQty.size, currentQty - 1);
+                                }
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-l-md border border-input bg-muted hover:bg-muted/80"
+                              disabled={parseInt(sizeQty.quantity) <= 0}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={sizeQty.quantity}
+                              onChange={(e) => handleSizeQuantityChange(sizeQty.size, e.target.value)}
+                              className="w-full h-8 border-y border-input px-2 text-center focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const currentQty = parseInt(sizeQty.quantity) || 0;
+                                handleSizeQuantityChange(sizeQty.size, currentQty + 1);
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-r-md border border-input bg-muted hover:bg-muted/80"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSize(sizeQty.size)}
+                            className="text-destructive hover:text-destructive/80 p-1 rounded-full hover:bg-muted"
+                            title="Remove size"
+                          >
+                            <FiTrash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <div className="flex justify-between pt-3 mt-2 border-t border-input">
+                      <span className="font-medium">Total Inventory:</span>
+                      <span className="font-bold">{calculateTotalStock()}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-muted/20 rounded-md mt-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      No sizes added yet. Please add at least one size with quantity.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </FormGroup>
           </div>
 
           {/* Right Column - Images & Description */}
           <div className="space-y-4">
             <FormGroup>
-              <FormLabel>Product Images</FormLabel>
-              <div className="space-y-4">
-                {/* Image preview section */}
-                {product.images && product.images.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                    {product.images.map((imageUrl, index) => (
-                      <div
-                        key={`${imageUrl}-${index}`}
-                        className="relative group overflow-hidden rounded-md border border-border bg-card"
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={`Product image ${index + 1}`}
-                          className="aspect-square h-full w-full object-cover transition-all duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src =
-                              "https://placehold.co/300x300?text=Image+Error";
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(imageUrl)}
-                          className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white opacity-0 transition-opacity duration-300 hover:bg-destructive/80 group-hover:opacity-100"
-                        >
-                          <FiXCircle className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
+              <FormLabel>Product Images*</FormLabel>
+              <div className="flex items-center justify-center flex-col">
+                <label
+                  htmlFor="image-upload"
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-input rounded-lg cursor-pointer bg-background hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <FiCamera className="w-8 h-8 mb-4 text-muted-foreground" />
+                    <p className="mb-2 text-sm text-muted-foreground">
+                      <span className="font-semibold">Click to upload</span>{" "}
+                      or drag and drop
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPG or WEBP (Max: 5MB per image)
+                    </p>
                   </div>
-                ) : (
-                  <div className="flex h-40 items-center justify-center rounded-md border-2 border-dashed border-input bg-background p-4 text-muted-foreground">
-                    No images added yet
+                  <input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleMultipleImageUpload}
+                    className="hidden"
+                    multiple
+                  />
+                </label>
+
+                {/* Existing product images */}
+                {product.images && product.images.length > 0 && (
+                  <div className="mt-4 w-full">
+                    <h3 className="text-sm font-medium mb-2">Current Images</h3>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                      {product.images.map((imgUrl, index) => (
+                        <div
+                          key={`${imgUrl}-${index}`}
+                          className="relative group overflow-hidden rounded-md border border-border bg-card"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Product image ${index + 1}`}
+                            className="aspect-square h-full w-full object-cover transition-all duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src =
+                                "https://placehold.co/300x300?text=Image+Error";
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(imgUrl)}
+                            className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white opacity-0 transition-opacity duration-300 hover:bg-destructive/80 group-hover:opacity-100"
+                          >
+                            <FiXCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* Upload new image section */}
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <input
-                      type="file"
-                      id="image"
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => document.getElementById("image").click()}
-                      className="w-full"
-                    >
-                      <FiCamera className="mr-2 h-4 w-4" />
-                      {imagePreview ? "Change Image" : "Upload Image"}
-                    </Button>
-                  </div>
-
-                  {/* Image preview */}
-                  {imagePreview && (
-                    <div className="relative mt-4 overflow-hidden rounded-md border border-border">
-                      <img
-                        src={imagePreview}
-                        alt="Product preview"
-                        className="aspect-video w-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImagePreview("");
-                          setImageFile(null);
-                        }}
-                        className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white hover:bg-destructive/80"
-                      >
-                        <FiXCircle className="h-4 w-4" />
-                      </button>
+                {/* New images preview */}
+                {multipleImagePreviews.length > 0 && (
+                  <div className="mt-4 w-full">
+                    <h3 className="text-sm font-medium mb-2">New Images to Upload</h3>
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                      {multipleImagePreviews.map((previewUrl, index) => (
+                        <div
+                          key={`preview-${index}`}
+                          className="relative group overflow-hidden rounded-md border border-border bg-card"
+                        >
+                          <img
+                            src={previewUrl}
+                            alt={`Product preview ${index + 1}`}
+                            className="aspect-square h-full w-full object-cover transition-all duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src =
+                                "https://placehold.co/300x300?text=Image+Error";
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newPreviews = multipleImagePreviews.filter((_, i) => i !== index);
+                              const newFiles = multipleImageFiles.filter((_, i) => i !== index);
+                              setMultipleImagePreviews(newPreviews);
+                              setMultipleImageFiles(newFiles);
+                            }}
+                            className="absolute right-2 top-2 rounded-full bg-destructive p-1 text-white opacity-0 transition-opacity duration-300 hover:bg-destructive/80 group-hover:opacity-100"
+                          >
+                            <FiXCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </FormGroup>
 

@@ -8,7 +8,7 @@ const Product = require("../models/productModel");
 const getCart = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).populate({
     path: "cart.product",
-    select: "name price image images countInStock",
+    select: "name price image images countInStock sizeQuantities",
   });
 
   if (!user) {
@@ -27,6 +27,17 @@ const getCart = asyncHandler(async (req, res) => {
         return null;
       }
 
+      // Get size-specific availability if size is specified
+      let availableQuantity = item.product.countInStock || 0;
+      if (item.size) {
+        const sizeInfo = item.product.sizeQuantities.find(
+          sq => sq.size === item.size
+        );
+        if (sizeInfo) {
+          availableQuantity = sizeInfo.quantity;
+        }
+      }
+
       return {
         _id: item.product._id,
         name: item.product.name || "Product Name Unavailable",
@@ -36,8 +47,9 @@ const getCart = asyncHandler(async (req, res) => {
           item.product.images?.[0] ||
           "https://placehold.co/100x100?text=No+Image",
         images: item.product.images || [],
-        countInStock: item.product.countInStock || 0,
+        countInStock: availableQuantity,
         quantity: item.quantity,
+        size: item.size || null,
       };
     })
     .filter(Boolean); // Remove any null items
@@ -49,7 +61,7 @@ const getCart = asyncHandler(async (req, res) => {
 // @route   POST /api/cart
 // @access  Private
 const addToCart = asyncHandler(async (req, res) => {
-  const { productId, quantity } = req.body;
+  const { productId, quantity, size } = req.body;
 
   if (!productId) {
     res.status(400);
@@ -70,10 +82,26 @@ const addToCart = asyncHandler(async (req, res) => {
     throw new Error("Product not found");
   }
 
-  // Check if product is in stock
-  if (product.countInStock < parsedQuantity) {
-    res.status(400);
-    throw new Error("Product is out of stock or has insufficient quantity");
+  // Size-specific inventory check
+  if (size) {
+    // Find if this size exists in the product
+    const sizeInfo = product.sizeQuantities.find(sq => sq.size === size);
+    if (!sizeInfo) {
+      res.status(400);
+      throw new Error(`Size ${size} is not available for this product`);
+    }
+    
+    // Check if specific size has enough stock
+    if (sizeInfo.quantity < parsedQuantity) {
+      res.status(400);
+      throw new Error(`Only ${sizeInfo.quantity} items available for size ${size}`);
+    }
+  } else {
+    // Check if product has enough total stock if no size specified
+    if (product.countInStock < parsedQuantity) {
+      res.status(400);
+      throw new Error("Product is out of stock or has insufficient quantity");
+    }
   }
 
   // Find user and update cart
@@ -83,19 +111,22 @@ const addToCart = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Check if product already exists in cart
+  // Check if product with the same size already exists in cart
   const existingCartItemIndex = user.cart.findIndex(
-    (item) => item.product.toString() === productId
+    (item) => 
+      item.product.toString() === productId && 
+      (size ? item.size === size : item.size === null)
   );
 
   if (existingCartItemIndex > -1) {
-    // Product exists in cart, update quantity
+    // Product with same size exists in cart, update quantity
     user.cart[existingCartItemIndex].quantity += parsedQuantity;
   } else {
-    // Product not in cart, add it
+    // Product not in cart or different size, add it
     user.cart.push({
       product: productId,
       quantity: parsedQuantity,
+      size: size || null,
     });
   }
 
@@ -105,7 +136,7 @@ const addToCart = asyncHandler(async (req, res) => {
   // Return updated cart
   const updatedUser = await User.findById(req.user._id).populate({
     path: "cart.product",
-    select: "name price image images countInStock",
+    select: "name price image images countInStock sizeQuantities",
   });
 
   // Transform cart items to include product details
@@ -119,6 +150,17 @@ const addToCart = asyncHandler(async (req, res) => {
         return null;
       }
 
+      // Get size-specific availability if size is specified
+      let availableQuantity = item.product.countInStock || 0;
+      if (item.size) {
+        const sizeInfo = item.product.sizeQuantities.find(
+          sq => sq.size === item.size
+        );
+        if (sizeInfo) {
+          availableQuantity = sizeInfo.quantity;
+        }
+      }
+
       return {
         _id: item.product._id,
         name: item.product.name || "Product Name Unavailable",
@@ -128,8 +170,9 @@ const addToCart = asyncHandler(async (req, res) => {
           item.product.images?.[0] ||
           "https://placehold.co/100x100?text=No+Image",
         images: item.product.images || [],
-        countInStock: item.product.countInStock || 0,
+        countInStock: availableQuantity,
         quantity: item.quantity,
+        size: item.size || null,
       };
     })
     .filter(Boolean); // Remove any null items
@@ -142,7 +185,7 @@ const addToCart = asyncHandler(async (req, res) => {
 // @access  Private
 const updateCartItem = asyncHandler(async (req, res) => {
   const productId = req.params.id;
-  const { quantity } = req.body;
+  const { quantity, size } = req.body;
 
   // Validate quantity
   const parsedQuantity = parseInt(quantity);
@@ -158,10 +201,26 @@ const updateCartItem = asyncHandler(async (req, res) => {
     throw new Error("Product not found");
   }
 
-  // Check if product is in stock
-  if (product.countInStock < parsedQuantity) {
-    res.status(400);
-    throw new Error("Product is out of stock or has insufficient quantity");
+  // Size-specific inventory check
+  if (size) {
+    // Find if this size exists in the product
+    const sizeInfo = product.sizeQuantities.find(sq => sq.size === size);
+    if (!sizeInfo) {
+      res.status(400);
+      throw new Error(`Size ${size} is not available for this product`);
+    }
+    
+    // Check if specific size has enough stock
+    if (sizeInfo.quantity < parsedQuantity) {
+      res.status(400);
+      throw new Error(`Only ${sizeInfo.quantity} items available for size ${size}`);
+    }
+  } else {
+    // Check if product is in stock
+    if (product.countInStock < parsedQuantity) {
+      res.status(400);
+      throw new Error("Product is out of stock or has insufficient quantity");
+    }
   }
 
   // Find user and update cart
@@ -171,14 +230,16 @@ const updateCartItem = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Find product in cart
+  // Find product in cart with matching size
   const cartItemIndex = user.cart.findIndex(
-    (item) => item.product.toString() === productId
+    (item) => 
+      item.product.toString() === productId && 
+      (size ? item.size === size : item.size === null)
   );
 
   if (cartItemIndex === -1) {
     res.status(404);
-    throw new Error("Product not found in cart");
+    throw new Error("Product not found in cart with specified size");
   }
 
   // Update quantity
@@ -190,7 +251,7 @@ const updateCartItem = asyncHandler(async (req, res) => {
   // Return updated cart
   const updatedUser = await User.findById(req.user._id).populate({
     path: "cart.product",
-    select: "name price image images countInStock",
+    select: "name price image images countInStock sizeQuantities",
   });
 
   // Transform cart items to include product details
@@ -204,6 +265,17 @@ const updateCartItem = asyncHandler(async (req, res) => {
         return null;
       }
 
+      // Get size-specific availability if size is specified
+      let availableQuantity = item.product.countInStock || 0;
+      if (item.size) {
+        const sizeInfo = item.product.sizeQuantities.find(
+          sq => sq.size === item.size
+        );
+        if (sizeInfo) {
+          availableQuantity = sizeInfo.quantity;
+        }
+      }
+
       return {
         _id: item.product._id,
         name: item.product.name || "Product Name Unavailable",
@@ -213,8 +285,9 @@ const updateCartItem = asyncHandler(async (req, res) => {
           item.product.images?.[0] ||
           "https://placehold.co/100x100?text=No+Image",
         images: item.product.images || [],
-        countInStock: item.product.countInStock || 0,
+        countInStock: availableQuantity,
         quantity: item.quantity,
+        size: item.size || null,
       };
     })
     .filter(Boolean); // Remove any null items
@@ -227,16 +300,25 @@ const updateCartItem = asyncHandler(async (req, res) => {
 // @access  Private
 const removeFromCart = asyncHandler(async (req, res) => {
   const productId = req.params.id;
+  const { size } = req.query; // Get size from query params
 
-  // Find user and update cart
+  // Find user
   const user = await User.findById(req.user._id);
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
 
-  // Filter out the product to be removed
-  user.cart = user.cart.filter((item) => item.product.toString() !== productId);
+  // Filter out the product to be removed, considering size if provided
+  if (size) {
+    // If size is provided, only remove the specific product + size combination
+    user.cart = user.cart.filter(
+      item => !(item.product.toString() === productId && item.size === size)
+    );
+  } else {
+    // If no size is provided, remove all instances of this product
+    user.cart = user.cart.filter(item => item.product.toString() !== productId);
+  }
 
   // Save user
   await user.save();
@@ -244,7 +326,7 @@ const removeFromCart = asyncHandler(async (req, res) => {
   // Return updated cart
   const updatedUser = await User.findById(req.user._id).populate({
     path: "cart.product",
-    select: "name price image images countInStock",
+    select: "name price image images countInStock sizeQuantities",
   });
 
   // Transform cart items to include product details
@@ -258,6 +340,17 @@ const removeFromCart = asyncHandler(async (req, res) => {
         return null;
       }
 
+      // Get size-specific availability if size is specified
+      let availableQuantity = item.product.countInStock || 0;
+      if (item.size) {
+        const sizeInfo = item.product.sizeQuantities.find(
+          sq => sq.size === item.size
+        );
+        if (sizeInfo) {
+          availableQuantity = sizeInfo.quantity;
+        }
+      }
+
       return {
         _id: item.product._id,
         name: item.product.name || "Product Name Unavailable",
@@ -267,8 +360,9 @@ const removeFromCart = asyncHandler(async (req, res) => {
           item.product.images?.[0] ||
           "https://placehold.co/100x100?text=No+Image",
         images: item.product.images || [],
-        countInStock: item.product.countInStock || 0,
+        countInStock: availableQuantity,
         quantity: item.quantity,
+        size: item.size || null,
       };
     })
     .filter(Boolean); // Remove any null items
@@ -332,33 +426,80 @@ const syncCart = asyncHandler(async (req, res) => {
         continue;
       }
 
-      // Check if product is in stock
-      if (product.countInStock <= 0) {
-        validationErrors.push({
-          productId: item._id,
-          name: product.name,
-          message: "Product is out of stock",
-        });
-        continue;
-      }
+      // If size is specified, check size-specific inventory
+      if (item.size) {
+        const sizeInfo = product.sizeQuantities.find(sq => sq.size === item.size);
+        
+        // If size doesn't exist, add error and skip
+        if (!sizeInfo) {
+          validationErrors.push({
+            productId: item._id,
+            name: product.name,
+            message: `Size ${item.size} is not available for this product`,
+          });
+          continue;
+        }
+        
+        // Check if specific size has enough inventory
+        if (sizeInfo.quantity <= 0) {
+          validationErrors.push({
+            productId: item._id,
+            name: product.name,
+            message: `Size ${item.size} is out of stock`,
+          });
+          continue;
+        }
+        
+        // Ensure quantity doesn't exceed available stock for this size
+        const requestedQuantity = parseInt(item.quantity) || 1;
+        const validQuantity = Math.min(requestedQuantity, sizeInfo.quantity);
+        
+        if (validQuantity !== requestedQuantity) {
+          validationErrors.push({
+            productId: item._id,
+            name: product.name,
+            message: `Quantity for size ${item.size} adjusted to ${validQuantity} due to stock limitations`,
+          });
+        }
+        
+        if (validQuantity > 0) {
+          newCart.push({
+            product: item._id,
+            quantity: validQuantity,
+            size: item.size,
+          });
+        }
+      } else {
+        // If no size specified, check general inventory
+        // Check if product is in stock
+        if (product.countInStock <= 0) {
+          validationErrors.push({
+            productId: item._id,
+            name: product.name,
+            message: "Product is out of stock",
+          });
+          continue;
+        }
 
-      // Ensure quantity is valid and doesn't exceed stock
-      const requestedQuantity = parseInt(item.quantity) || 1;
-      const validQuantity = Math.min(requestedQuantity, product.countInStock);
+        // Ensure quantity is valid and doesn't exceed stock
+        const requestedQuantity = parseInt(item.quantity) || 1;
+        const validQuantity = Math.min(requestedQuantity, product.countInStock);
 
-      if (validQuantity !== requestedQuantity) {
-        validationErrors.push({
-          productId: item._id,
-          name: product.name,
-          message: `Quantity adjusted to ${validQuantity} due to stock limitations`,
-        });
-      }
+        if (validQuantity !== requestedQuantity) {
+          validationErrors.push({
+            productId: item._id,
+            name: product.name,
+            message: `Quantity adjusted to ${validQuantity} due to stock limitations`,
+          });
+        }
 
-      if (validQuantity > 0) {
-        newCart.push({
-          product: item._id,
-          quantity: validQuantity,
-        });
+        if (validQuantity > 0) {
+          newCart.push({
+            product: item._id,
+            quantity: validQuantity,
+            size: null,
+          });
+        }
       }
     } catch (error) {
       console.error(`Error processing cart item ${item._id}:`, error);
@@ -378,7 +519,7 @@ const syncCart = asyncHandler(async (req, res) => {
   // Return updated cart
   const updatedUser = await User.findById(req.user._id).populate({
     path: "cart.product",
-    select: "name price image images countInStock",
+    select: "name price image images countInStock sizeQuantities",
   });
 
   // Transform cart items to include product details
@@ -392,6 +533,17 @@ const syncCart = asyncHandler(async (req, res) => {
         return null;
       }
 
+      // Get size-specific availability if size is specified
+      let availableQuantity = item.product.countInStock || 0;
+      if (item.size) {
+        const sizeInfo = item.product.sizeQuantities.find(
+          sq => sq.size === item.size
+        );
+        if (sizeInfo) {
+          availableQuantity = sizeInfo.quantity;
+        }
+      }
+
       return {
         _id: item.product._id,
         name: item.product.name || "Product Name Unavailable",
@@ -401,8 +553,9 @@ const syncCart = asyncHandler(async (req, res) => {
           item.product.images?.[0] ||
           "https://placehold.co/100x100?text=No+Image",
         images: item.product.images || [],
-        countInStock: item.product.countInStock || 0,
+        countInStock: availableQuantity,
         quantity: item.quantity,
+        size: item.size || null,
       };
     })
     .filter(Boolean); // Remove any null items

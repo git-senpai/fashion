@@ -67,9 +67,14 @@ const createProduct = asyncHandler(async (req, res) => {
     images,
     brand,
     category,
-    countInStock,
+    sizeQuantities,
     featured,
   } = req.body;
+
+  // Calculate total countInStock from sizeQuantities
+  const countInStock = Array.isArray(sizeQuantities)
+    ? sizeQuantities.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+    : 0;
 
   const product = new Product({
     name,
@@ -79,6 +84,7 @@ const createProduct = asyncHandler(async (req, res) => {
     brand,
     category,
     countInStock,
+    sizeQuantities: sizeQuantities || [],
     numReviews: 0,
     description,
     featured: featured || false,
@@ -99,6 +105,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     images,
     brand,
     category,
+    sizeQuantities,
     countInStock,
     featured,
   } = req.body;
@@ -106,13 +113,19 @@ const updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
 
   if (product) {
+    // Calculate total stock from sizeQuantities
+    const calculatedCountInStock = Array.isArray(sizeQuantities)
+      ? sizeQuantities.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+      : countInStock || product.countInStock;
+
     product.name = name || product.name;
     product.price = price || product.price;
     product.description = description || product.description;
     product.images = images || product.images;
     product.brand = brand || product.brand;
     product.category = category || product.category;
-    product.countInStock = countInStock || product.countInStock;
+    product.countInStock = calculatedCountInStock;
+    product.sizeQuantities = sizeQuantities || product.sizeQuantities;
     product.featured = featured !== undefined ? featured : product.featured;
 
     const updatedProduct = await product.save();

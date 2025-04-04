@@ -80,12 +80,17 @@ export const useCartStore = create(
       },
 
       // Add item to cart
-      addToCart: async (product, quantity = 1) => {
+      addToCart: async (cartItem) => {
         try {
           set({ loading: true, error: null });
 
+          // Validate the cart item
+          if (!cartItem || !cartItem.productId) {
+            throw new Error("Invalid product data");
+          }
+
           // Parse quantity to ensure it's a number
-          const parsedQuantity = parseInt(quantity);
+          const parsedQuantity = parseInt(cartItem.quantity);
           if (isNaN(parsedQuantity) || parsedQuantity < 1) {
             throw new Error("Invalid quantity");
           }
@@ -93,8 +98,9 @@ export const useCartStore = create(
           if (isUserLoggedIn()) {
             // User is logged in, sync with server
             const cartItems = await cartService.addToCart(
-              product._id,
-              parsedQuantity
+              cartItem.productId,
+              parsedQuantity,
+              cartItem.size
             );
             set({
               cartItems,
@@ -105,33 +111,28 @@ export const useCartStore = create(
             // User is not logged in, update local state
             const { cartItems } = get();
 
-            // Check if product already exists in cart
-            const existingItem = cartItems.find(
-              (item) => item._id === product._id
+            // Check if product already exists in cart with the same size
+            const existingItemIndex = cartItems.findIndex(
+              (item) => 
+                item.productId === cartItem.productId && 
+                item.size === cartItem.size
             );
 
             let updatedCart;
-            if (existingItem) {
-              // Update quantity if product exists
-              updatedCart = cartItems.map((item) =>
-                item._id === product._id
+            if (existingItemIndex !== -1) {
+              // Update quantity if product with same size exists
+              updatedCart = cartItems.map((item, index) =>
+                index === existingItemIndex
                   ? { ...item, quantity: item.quantity + parsedQuantity }
                   : item
               );
             } else {
-              // Add new item if product doesn't exist
-              const newItem = {
-                _id: product._id,
-                name: product.name,
-                image:
-                  product.image ||
-                  product.images?.[0] ||
-                  "https://placehold.co/100x100?text=No+Image",
-                price: product.price,
-                countInStock: product.countInStock,
+              // Add new item if product doesn't exist or has different size
+              updatedCart = [...cartItems, {
+                ...cartItem,
                 quantity: parsedQuantity,
-              };
-              updatedCart = [...cartItems, newItem];
+                _id: cartItem.productId + (cartItem.size ? `-${cartItem.size}` : '')
+              }];
             }
 
             set({
@@ -140,20 +141,18 @@ export const useCartStore = create(
               loading: false,
             });
           }
-
-          toast.success(`${product.name} added to cart`);
         } catch (error) {
           console.error("Failed to add to cart:", error);
           set({
             error: error.message || "Failed to add to cart",
             loading: false,
           });
-          toast.error(error.message || "Failed to add to cart");
+          throw error;
         }
       },
 
       // Update cart item quantity
-      updateCartItemQuantity: async (productId, quantity) => {
+      updateCartItemQuantity: async (productId, quantity, size = null) => {
         try {
           // Parse quantity to ensure it's a number
           const parsedQuantity = parseInt(quantity);
@@ -167,7 +166,8 @@ export const useCartStore = create(
             // User is logged in, sync with server
             const cartItems = await cartService.updateCartItem(
               productId,
-              parsedQuantity
+              parsedQuantity,
+              size
             );
             set({
               cartItems,
@@ -178,7 +178,7 @@ export const useCartStore = create(
             // User is not logged in, update local state
             const { cartItems } = get();
             const updatedCart = cartItems.map((item) =>
-              item._id === productId
+              item._id === productId && item.size === size
                 ? { ...item, quantity: parsedQuantity }
                 : item
             );
@@ -202,13 +202,13 @@ export const useCartStore = create(
       },
 
       // Remove item from cart
-      removeFromCart: async (productId) => {
+      removeFromCart: async (productId, size = null) => {
         try {
           set({ loading: true, error: null });
 
           if (isUserLoggedIn()) {
             // User is logged in, sync with server
-            const cartItems = await cartService.removeFromCart(productId);
+            const cartItems = await cartService.removeFromCart(productId, size);
             set({
               cartItems,
               ...calculateCartTotals(cartItems),
@@ -217,9 +217,11 @@ export const useCartStore = create(
           } else {
             // User is not logged in, update local state
             const { cartItems } = get();
-            const updatedCart = cartItems.filter(
-              (item) => item._id !== productId
-            );
+            
+            // If size is provided, only remove items with that specific size
+            const updatedCart = size 
+              ? cartItems.filter(item => !(item._id === productId && item.size === size))
+              : cartItems.filter(item => item._id !== productId);
 
             set({
               cartItems: updatedCart,

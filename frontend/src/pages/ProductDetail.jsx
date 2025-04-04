@@ -31,6 +31,7 @@ const ProductDetail = () => {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState("");
   const [currentImage, setCurrentImage] = useState(0);
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
@@ -78,14 +79,48 @@ const ProductDetail = () => {
   }, [id]);
 
   const handleAddToCart = async () => {
-    if (!product) return;
-
-    setAddingToCart(true);
     try {
-      await addToCart(product, quantity);
-      // Toast notification is handled inside addToCart function
+      if (product.countInStock === 0) {
+        toast.error("This product is out of stock");
+        return;
+      }
+
+      if (product.sizeQuantities && product.sizeQuantities.length > 0 && !selectedSize) {
+        toast.error("Please select a size");
+        return;
+      }
+      
+      // Check if the selected size has enough stock
+      if (selectedSize) {
+        const sizeInfo = product.sizeQuantities.find(sq => sq.size === selectedSize);
+        if (!sizeInfo) {
+          toast.error("Selected size not found");
+          return;
+        }
+        
+        if (sizeInfo.quantity < quantity) {
+          toast.error(`Only ${sizeInfo.quantity} items available for size ${selectedSize}`);
+          return;
+        }
+      }
+
+      setAddingToCart(true);
+
+      // Create cart item object
+      const cartItem = {
+        productId: product._id,
+        name: product.name,
+        image: productImages[0],
+        price: product.price,
+        countInStock: product.countInStock,
+        quantity,
+        size: selectedSize || null,
+      };
+
+      await addToCart(cartItem);
+      toast.success(`${product.name} added to cart`);
     } catch (error) {
-      console.error("Failed to add to cart:", error);
+      console.error("Error adding to cart:", error);
       toast.error(error.message || "Failed to add to cart");
     } finally {
       setAddingToCart(false);
@@ -390,6 +425,38 @@ const ProductDetail = () => {
                 : "Out of Stock"}
             </span>
           </div>
+          
+          {/* Size Selection */}
+          {product.sizeQuantities && product.sizeQuantities.length > 0 && (
+            <div className="mb-6">
+              <h3 className="mb-2 text-sm font-medium">Select Size</h3>
+              <div className="flex flex-wrap gap-2">
+                {product.sizeQuantities.map((sizeQty) => (
+                  <button
+                    key={sizeQty.size}
+                    type="button"
+                    onClick={() => setSelectedSize(sizeQty.size)}
+                    disabled={sizeQty.quantity === 0}
+                    className={`flex h-10 min-w-[3rem] items-center justify-center rounded-md border px-3 transition-colors ${
+                      selectedSize === sizeQty.size
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : sizeQty.quantity === 0
+                        ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {sizeQty.size}
+                    {sizeQty.quantity === 0 && <span className="ml-1">(Out of stock)</span>}
+                  </button>
+                ))}
+              </div>
+              {selectedSize && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {product.sizeQuantities.find(sq => sq.size === selectedSize)?.quantity || 0} items available in size {selectedSize}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Add to Cart */}
           <div className="mb-8 flex flex-wrap items-center gap-4">
@@ -500,6 +567,26 @@ const ProductDetail = () => {
                   <span className="font-medium">Category</span>
                   <span>{product.category}</span>
                 </div>
+                
+                {/* Display available sizes and their stock */}
+                {product.sizeQuantities && product.sizeQuantities.length > 0 && (
+                  <div className="rounded-md bg-muted p-3">
+                    <span className="block font-medium mb-2">Available Sizes</span>
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {product.sizeQuantities
+                        .filter(sq => sq.quantity > 0)
+                        .map(sq => (
+                          <div key={sq.size} className="text-center rounded bg-white p-1.5 border border-gray-200">
+                            <span className="block font-medium">{sq.size}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {sq.quantity} in stock
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+                
                 {product.specifications?.map((spec, index) => (
                   <div
                     key={index}

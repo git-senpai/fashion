@@ -7,6 +7,7 @@ import {
   FiLogOut,
   FiBarChart2,
   FiTag,
+  FiMaximize2,
 } from "react-icons/fi";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -34,6 +35,11 @@ export const AdminSidebar = ({ mobile }) => {
       name: "Categories",
       href: "/admin/categories",
       icon: FiTag,
+    },
+    {
+      name: "Sizes",
+      href: "/admin/sizes",
+      icon: FiMaximize2,
     },
     {
       name: "Orders",

@@ -207,7 +207,7 @@ export const Navbar = () => {
                       className="block rounded-md px-4 py-2.5 text-sm hover:bg-accent/30 transition-colors duration-150"
                       onClick={() => setIsOpen(false)}
                     >
-                      Dashboard
+                      Profile
                     </Link>
                     <Link
                       to="/wishlist"

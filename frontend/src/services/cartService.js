@@ -45,7 +45,7 @@ export const getCart = async () => {
 };
 
 // Add a product to the cart
-export const addToCart = async (productId, quantity = 1) => {
+export const addToCart = async (productId, quantity = 1, size = null) => {
   try {
     const config = {
       ...getAuthConfig(),
@@ -61,11 +61,13 @@ export const addToCart = async (productId, quantity = 1) => {
       throw new Error("Invalid quantity");
     }
 
+    // Add the product to cart with optional size
     const { data } = await axios.post(
       "/api/cart",
-      { productId, quantity: parsedQuantity },
+      { productId, quantity: parsedQuantity, size },
       config
     );
+    
     return data.cartItems;
   } catch (error) {
     const message =
@@ -77,7 +79,7 @@ export const addToCart = async (productId, quantity = 1) => {
 };
 
 // Update cart item quantity
-export const updateCartItem = async (productId, quantity) => {
+export const updateCartItem = async (productId, quantity, size = null) => {
   try {
     const config = {
       ...getAuthConfig(),
@@ -95,7 +97,7 @@ export const updateCartItem = async (productId, quantity) => {
 
     const { data } = await axios.put(
       `/api/cart/${productId}`,
-      { quantity: parsedQuantity },
+      { quantity: parsedQuantity, size },
       config
     );
     return data.cartItems;
@@ -109,10 +111,17 @@ export const updateCartItem = async (productId, quantity) => {
 };
 
 // Remove an item from the cart
-export const removeFromCart = async (productId) => {
+export const removeFromCart = async (productId, size = null) => {
   try {
     const config = getAuthConfig();
-    const { data } = await axios.delete(`/api/cart/${productId}`, config);
+    let url = `/api/cart/${productId}`;
+    
+    // Add size as query parameter if provided
+    if (size) {
+      url += `?size=${encodeURIComponent(size)}`;
+    }
+    
+    const { data } = await axios.delete(url, config);
     return data.cartItems;
   } catch (error) {
     const message =
@@ -149,15 +158,16 @@ export const syncCart = async (cartItems) => {
       },
     };
 
-    // Format cart items for sync
+    // Format cart items for sync, including size information
     const itemsToSync = cartItems.map((item) => ({
-      productId: item._id,
+      _id: item._id,
       quantity: item.quantity,
+      size: item.size || null,
     }));
 
     const { data } = await axios.post(
       "/api/cart/sync",
-      { items: itemsToSync },
+      { cartItems: itemsToSync },
       config
     );
     return data.cartItems;

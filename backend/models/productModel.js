@@ -16,6 +16,18 @@ const reviewSchema = mongoose.Schema(
   }
 );
 
+const sizeQuantitySchema = mongoose.Schema({
+  size: {
+    type: String,
+    required: true,
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+});
+
 const productSchema = mongoose.Schema(
   {
     user: {
@@ -61,6 +73,7 @@ const productSchema = mongoose.Schema(
       required: true,
       default: 0,
     },
+    sizeQuantities: [sizeQuantitySchema],
     countInStock: {
       type: Number,
       required: true,

@@ -303,6 +303,7 @@ export const createProduct = async (productData, token) => {
       price: Number(productToCreate.price || 0),
       countInStock: Number(productToCreate.countInStock || 0),
       images: productToCreate.images || [],
+      sizeQuantities: productToCreate.sizeQuantities || [],
     };
 
     console.log("Creating product with data:", newProduct);

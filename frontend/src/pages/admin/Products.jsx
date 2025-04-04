@@ -178,9 +178,25 @@ const Products = () => {
                         ? product.countInStock
                         : "Out of stock"}
                     </span>
+                    {product.sizeQuantities && product.sizeQuantities.length > 0 && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        {product.sizeQuantities
+                          .filter(sq => sq.quantity > 0)
+                          .map(sq => `${sq.size} (${sq.quantity})`)
+                          .join(', ')}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end space-x-2">
+                      <Link to={`/products/${product._id}`} target="_blank">
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:bg-blue-100">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        </Button>
+                      </Link>
                       <Link to={`/admin/products/${product._id}`}>
                         <Button variant="ghost" size="sm">
                           <FiEdit className="h-4 w-4" />

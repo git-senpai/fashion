@@ -35,6 +35,7 @@ const AdminOrders = lazy(() => import("./pages/admin/Orders"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminCategories = lazy(() => import("./pages/admin/CategoryList"));
 const AdminCategoryEdit = lazy(() => import("./pages/admin/CategoryEdit"));
+const AdminSizes = lazy(() => import("./pages/admin/SizeList"));
 
 function AppContent() {
   const initCart = useCartStore((state) => state.initCart);
@@ -83,6 +84,7 @@ function AppContent() {
           <Route path="categories" element={<AdminCategories />} />
           <Route path="categories/new" element={<AdminCategoryEdit />} />
           <Route path="categories/:id/edit" element={<AdminCategoryEdit />} />
+          <Route path="sizes" element={<AdminSizes />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="users" element={<AdminUsers />} />
         </Route>

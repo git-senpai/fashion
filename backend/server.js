@@ -9,6 +9,7 @@ const uploadRoutes = require("./routes/uploadRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const wishlistRoutes = require("./routes/wishlistRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const sizeRoutes = require("./routes/sizeRoutes");
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");
 
 // Load environment variables
@@ -31,6 +32,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/sizes", sizeRoutes);
 
 // Default route
 app.get("/", (req, res) => {
