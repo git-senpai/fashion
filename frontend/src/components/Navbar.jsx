@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,8 @@ import {
   FiX,
   FiHeart,
   FiChevronDown,
+  FiFolder,
+  FiPlus,
 } from "react-icons/fi";
 import { useAuth } from "../hooks/useAuth";
 import { useCartStore } from "../store/useCartStore";
@@ -20,13 +22,62 @@ export const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [wishlistMenuOpen, setWishlistMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const cartItems = useCartStore((state) => state.cartItems);
-  const wishlistItems = useWishlistStore((state) => state.wishlistItems);
+  const { wishlistItems, collections, initCollections } = useWishlistStore();
   const navigate = useNavigate();
+  
+  const wishlistMenuRef = useRef(null);
+
+  // Calculate total wishlist items count (including collections)
+  const getTotalWishlistCount = () => {
+    // Count items from main wishlist
+    let count = wishlistItems.length;
+    
+    // Add items from all collections
+    if (collections && collections.length > 0) {
+      const collectionItems = collections.flatMap(c => c.products);
+      
+      // Only count unique items (avoid duplicates if an item is in multiple collections)
+      const uniqueIds = new Set(wishlistItems.map(item => item._id || item));
+      
+      for (const item of collectionItems) {
+        const itemId = item._id || item;
+        if (!uniqueIds.has(itemId)) {
+          uniqueIds.add(itemId);
+          count++;
+        }
+      }
+    }
+    
+    return count;
+  };
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
+  const toggleWishlistMenu = () => setWishlistMenuOpen(!wishlistMenuOpen);
+
+  // Load wishlist collections if user is authenticated
+  useEffect(() => {
+    if (user) {
+      initCollections();
+    }
+  }, [user, initCollections]);
+
+  // Handle click outside wishlist menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wishlistMenuRef.current && !wishlistMenuRef.current.contains(event.target)) {
+        setWishlistMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // GSAP animation for navbar on scroll
   useEffect(() => {
@@ -156,16 +207,77 @@ export const Navbar = () => {
         {/* Icons */}
         <div className="flex items-center space-x-5">
           {user && (
-            <Link to="/wishlist" className="relative hidden sm:block">
-              <div className="relative p-2 rounded-full hover:bg-accent/40 transition-colors duration-200">
+            <div className="relative hidden sm:block" ref={wishlistMenuRef}>
+              <button
+                onClick={toggleWishlistMenu}
+                className="relative p-2 rounded-full hover:bg-accent/40 transition-colors duration-200 flex items-center"
+              >
                 <FiHeart className="h-5 w-5 text-foreground" />
-                {wishlistItems.length > 0 && (
+                {getTotalWishlistCount() > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-soft">
-                    {wishlistItems.length}
+                    {getTotalWishlistCount()}
                   </span>
                 )}
-              </div>
-            </Link>
+              </button>
+              
+              <AnimatePresence>
+                {wishlistMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-60 rounded-lg bg-white p-2 shadow-soft border border-border/60 z-20"
+                  >
+                    <div className="mb-2 border-b border-border/60 pb-2 pt-1">
+                      <p className="text-sm font-medium px-3">Wishlist</p>
+                    </div>
+                    
+                    <Link
+                      to="/wishlist"
+                      className="block rounded-md px-4 py-2.5 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
+                      onClick={() => setWishlistMenuOpen(false)}
+                    >
+                      <FiHeart className="mr-2 h-4 w-4" /> All Items
+                      {getTotalWishlistCount() > 0 && (
+                        <span className="ml-auto bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                          {getTotalWishlistCount()}
+                        </span>
+                      )}
+                    </Link>
+                    
+                    {collections && collections.length > 0 && (
+                      <div className="mt-1 pt-1 border-t border-gray-100">
+                        <p className="px-4 py-1 text-xs text-gray-500">Collections</p>
+                        {collections.map(collection => (
+                          <Link
+                            key={collection._id}
+                            to={`/wishlist?collection=${collection._id}`}
+                            className="block rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
+                            onClick={() => setWishlistMenuOpen(false)}
+                          >
+                            <FiFolder className="mr-2 h-4 w-4" /> {collection.name}
+                            {collection.products.length > 0 && (
+                              <span className="ml-auto bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                                {collection.products.length}
+                              </span>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <Link
+                      to="/wishlist"
+                      className="block rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center border-t border-gray-100 mt-1 pt-1 text-primary"
+                      onClick={() => setWishlistMenuOpen(false)}
+                    >
+                      <FiPlus className="mr-2 h-4 w-4" /> Create Collection
+                    </Link>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
 
           <Link to="/cart" className="relative">
@@ -305,13 +417,32 @@ export const Navbar = () => {
                   Shop
                 </Link>
                 {user && (
-                  <Link
-                    to="/wishlist"
-                    className="block py-2.5 text-base font-medium hover:text-primary transition-colors duration-150"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Wishlist
-                  </Link>
+                  <>
+                    <Link
+                      to="/wishlist"
+                      className="block py-2.5 text-base font-medium hover:text-primary transition-colors duration-150"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Wishlist
+                    </Link>
+                    {collections && collections.length > 0 && (
+                      <div className="pl-4 space-y-2 mt-1">
+                        {collections.map(collection => (
+                          <Link
+                            key={collection._id}
+                            to={`/wishlist?collection=${collection._id}`}
+                            className="block py-1.5 text-sm hover:text-primary transition-colors duration-150 flex items-center"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            <FiFolder className="mr-2 h-4 w-4" /> {collection.name}
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({collection.products.length})
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

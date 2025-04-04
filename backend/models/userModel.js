@@ -1,6 +1,26 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
+// Define wishlist collection schema
+const wishlistCollectionSchema = mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    products: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
 const userSchema = mongoose.Schema(
   {
     name: {
@@ -27,6 +47,7 @@ const userSchema = mongoose.Schema(
         ref: "Product",
       },
     ],
+    wishlistCollections: [wishlistCollectionSchema],
     cart: [
       {
         product: {

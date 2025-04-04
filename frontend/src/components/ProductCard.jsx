@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { FiHeart, FiShoppingCart, FiEye, FiX } from "react-icons/fi";
+import { FiHeart, FiShoppingCart, FiEye, FiX, FiFolder, FiPlus } from "react-icons/fi";
 import { toast } from "sonner";
 import { useCartStore } from "../store/useCartStore";
 import { useAuth } from "../hooks/useAuth";
@@ -15,10 +15,25 @@ export const ProductCard = ({ product }) => {
   const [showSizeSelector, setShowSizeSelector] = useState(false);
   const [selectedSize, setSelectedSize] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [showWishlistModal, setShowWishlistModal] = useState(false);
+  const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [addingToWishlist, setAddingToWishlist] = useState(false);
+  
   const sizeSelectorRef = useRef(null);
+  const wishlistModalRef = useRef(null);
+  const newCollectionInputRef = useRef(null);
+  
   const { addToCart } = useCartStore();
   const { user } = useAuth();
-  const { addToWishlist, isInWishlist } = useWishlistStore();
+  const { 
+    addToWishlist, 
+    isInWishlist, 
+    collections, 
+    createCollection,
+    initCollections,
+    removeFromWishlist
+  } = useWishlistStore();
   const [inWishlist, setInWishlist] = useState(false);
 
   // Make sure product has default values for required properties
@@ -48,11 +63,22 @@ export const ProductCard = ({ product }) => {
     setDiscountPercentage(discount);
   }, [safeProduct.price, product, user, isInWishlist]);
 
+  // Load collections when user is authenticated
+  useEffect(() => {
+    if (user) {
+      initCollections();
+    }
+  }, [user, initCollections]);
+
   // Close size selector when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (sizeSelectorRef.current && !sizeSelectorRef.current.contains(event.target)) {
         setShowSizeSelector(false);
+      }
+      
+      if (wishlistModalRef.current && !wishlistModalRef.current.contains(event.target)) {
+        setShowWishlistModal(false);
       }
     };
 
@@ -61,6 +87,15 @@ export const ProductCard = ({ product }) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+  
+  // Focus input when new collection modal opens
+  useEffect(() => {
+    if (showNewCollectionModal && newCollectionInputRef.current) {
+      setTimeout(() => {
+        newCollectionInputRef.current.focus();
+      }, 100);
+    }
+  }, [showNewCollectionModal]);
 
   // Handle different image formats - single image or images array
   const productImages = (() => {
@@ -148,14 +183,82 @@ export const ProductCard = ({ product }) => {
       toast.error("Please login to add items to your wishlist");
       return;
     }
+    
+    // If product is already in wishlist, remove it instead of showing modal
+    if (inWishlist) {
+      setAddingToWishlist(true);
+      try {
+        await removeFromWishlist(safeProduct._id);
+        setInWishlist(false);
+        toast.success(`${safeProduct.name} removed from wishlist`);
+      } catch (error) {
+        console.error("Failed to remove from wishlist:", error);
+        toast.error(error.message || "Failed to remove from wishlist");
+      } finally {
+        setAddingToWishlist(false);
+      }
+      return;
+    }
 
+    // If there are collections, show the modal
+    if (collections && collections.length > 0) {
+      setShowWishlistModal(true);
+    } else {
+      // No collections, add directly to main wishlist
+      addToMainWishlist();
+    }
+  };
+  
+  const addToMainWishlist = async () => {
+    setShowWishlistModal(false);
+    setAddingToWishlist(true);
     try {
       await addToWishlist(safeProduct);
       setInWishlist(true);
-      // Toast notification is handled inside the addToWishlist function
+      toast.success(`${safeProduct.name} added to wishlist`);
     } catch (error) {
       console.error("Failed to add to wishlist:", error);
       toast.error(error.message || "Failed to add to wishlist");
+    } finally {
+      setAddingToWishlist(false);
+    }
+  };
+  
+  const addToCollection = async (collectionId) => {
+    setShowWishlistModal(false);
+    setAddingToWishlist(true);
+    try {
+      await addToWishlist(safeProduct, collectionId);
+      setInWishlist(true);
+      toast.success(`${safeProduct.name} added to collection`);
+    } catch (error) {
+      console.error("Failed to add to collection:", error);
+      toast.error(error.message || "Failed to add to collection");
+    } finally {
+      setAddingToWishlist(false);
+    }
+  };
+  
+  const handleCreateCollection = async (e) => {
+    e.preventDefault();
+    
+    if (!newCollectionName.trim()) {
+      toast.error("Please enter a collection name");
+      return;
+    }
+    
+    try {
+      const newCollections = await createCollection(newCollectionName);
+      setNewCollectionName("");
+      setShowNewCollectionModal(false);
+      
+      // If we have the new collection, add the product to it
+      if (newCollections && newCollections.length > 0) {
+        const newCollection = newCollections[newCollections.length - 1];
+        addToCollection(newCollection._id);
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to create collection");
     }
   };
 
@@ -237,8 +340,13 @@ export const ProductCard = ({ product }) => {
                   ? "bg-[#e84a7f] text-white"
                   : "bg-white text-[#e84a7f] hover:bg-[#e84a7f] hover:text-white"
               }`}
+              disabled={addingToWishlist}
             >
-              <FiHeart className="h-4 w-4 drop-shadow-sm" />
+              {addingToWishlist ? (
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
+              ) : (
+                <FiHeart className="h-4 w-4 drop-shadow-sm" />
+              )}
             </button>
             <button
               onClick={handleAddToCart}
@@ -319,6 +427,74 @@ export const ProductCard = ({ product }) => {
               </div>
             </div>
           )}
+          
+          {/* Wishlist Collection Modal */}
+          {showWishlistModal && (
+            <div 
+              className="absolute inset-0 bg-black/70 flex items-center justify-center z-30"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
+              <div 
+                ref={wishlistModalRef}
+                className="bg-white rounded-lg p-4 max-w-xs w-full mx-4"
+              >
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-sm">Add to Wishlist</h3>
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowWishlistModal(false);
+                    }}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <FiX size={18} />
+                  </button>
+                </div>
+                
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    addToMainWishlist();
+                  }}
+                  className="w-full text-left p-2 rounded-md hover:bg-gray-100 flex items-center mb-2"
+                >
+                  <FiHeart className="mr-2 text-[#e84a7f]" /> Add to main wishlist
+                </button>
+                
+                <div className="border-t border-gray-200 my-3 pt-3">
+                  <h4 className="text-sm font-medium mb-2 text-gray-700">Or add to a collection:</h4>
+                  <div className="max-h-40 overflow-y-auto space-y-2">
+                    {collections.map(collection => (
+                      <button
+                        key={collection._id}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          addToCollection(collection._id);
+                        }}
+                        className="w-full text-left p-2 rounded-md hover:bg-gray-100 flex items-center"
+                      >
+                        <FiFolder className="mr-2 text-gray-500" />
+                        {collection.name}
+                        <span className="ml-auto text-xs text-gray-500">
+                          {collection.products.length} items
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+               
+              </div>
+            </div>
+          )}
+          
+         
         </div>
       </Link>
 

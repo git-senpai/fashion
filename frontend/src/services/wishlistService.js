@@ -1,30 +1,24 @@
 import axios from "axios";
 
-// Helper function to get auth token from local storage
+// Helper function to get auth config
 const getAuthConfig = () => {
-  try {
-    const authStorage = localStorage.getItem("auth-storage");
-    if (!authStorage) {
-      throw new Error("Authentication required");
-    }
+  const userJSON = localStorage.getItem("auth-storage");
+  if (!userJSON) {
+    throw new Error("Authentication required");
+  }
 
-    const parsed = JSON.parse(authStorage);
-    if (
-      !parsed ||
-      !parsed.state ||
-      !parsed.state.user ||
-      !parsed.state.user.token
-    ) {
+  try {
+    const user = JSON.parse(userJSON);
+    if (!user.state || !user.state.user || !user.state.user.token) {
       throw new Error("Authentication required");
     }
 
     return {
       headers: {
-        Authorization: `Bearer ${parsed.state.user.token}`,
+        Authorization: `Bearer ${user.state.user.token}`,
       },
     };
   } catch (error) {
-    console.error("Error getting auth config:", error);
     throw new Error("Authentication required");
   }
 };
@@ -44,8 +38,23 @@ export const getWishlist = async () => {
   }
 };
 
-// Add a product to the wishlist
-export const addToWishlist = async (productId) => {
+// Get user's wishlist collections
+export const getWishlistCollections = async () => {
+  try {
+    const config = getAuthConfig();
+    const { data } = await axios.get("/api/wishlist/collections", config);
+    return data; // Backend returns an array of wishlist collections
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Create a new wishlist collection
+export const createWishlistCollection = async (name) => {
   try {
     const config = {
       ...getAuthConfig(),
@@ -54,13 +63,12 @@ export const addToWishlist = async (productId) => {
         "Content-Type": "application/json",
       },
     };
-
-    if (!productId) {
-      throw new Error("Product ID is required");
-    }
-
-    const { data } = await axios.post("/api/wishlist", { productId }, config);
-    return data; // Backend returns updated wishlist
+    const { data } = await axios.post(
+      "/api/wishlist/collections",
+      { name },
+      config
+    );
+    return data;
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -70,17 +78,138 @@ export const addToWishlist = async (productId) => {
   }
 };
 
-// Remove an item from the wishlist
+// Delete a wishlist collection
+export const deleteWishlistCollection = async (collectionId) => {
+  try {
+    const config = getAuthConfig();
+    const { data } = await axios.delete(
+      `/api/wishlist/collections/${collectionId}`,
+      config
+    );
+    return data;
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Add product to a collection
+export const addProductToCollection = async (collectionId, productId) => {
+  try {
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
+    const { data } = await axios.post(
+      `/api/wishlist/collections/${collectionId}/products`,
+      { productId },
+      config
+    );
+    return data;
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Remove product from a collection
+export const removeProductFromCollection = async (collectionId, productId) => {
+  try {
+    const config = getAuthConfig();
+    const { data } = await axios.delete(
+      `/api/wishlist/collections/${collectionId}/products/${productId}`,
+      config
+    );
+    return data;
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Move product between collections
+export const moveProductBetweenCollections = async (
+  sourceCollectionId,
+  productId,
+  targetCollectionId
+) => {
+  try {
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
+    
+    // We'll use a two-step approach for more reliability
+    // Step 1: Add to target collection
+    await axios.post(
+      `/api/wishlist/collections/${targetCollectionId}/products`,
+      { productId },
+      config
+    );
+    
+    // Step 2: Remove from source collection
+    const { data } = await axios.delete(
+      `/api/wishlist/collections/${sourceCollectionId}/products/${productId}`,
+      config
+    );
+    
+    return data;
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Add product to wishlist
+export const addToWishlist = async (productId, collectionId = null) => {
+  try {
+    const config = {
+      ...getAuthConfig(),
+      headers: {
+        ...getAuthConfig().headers,
+        "Content-Type": "application/json",
+      },
+    };
+    
+    const requestBody = collectionId 
+      ? { productId, collectionId }
+      : { productId };
+      
+    const { data } = await axios.post("/api/wishlist", requestBody, config);
+    return data;
+  } catch (error) {
+    const message =
+      error.response && error.response.data.message
+        ? error.response.data.message
+        : error.message;
+    throw new Error(message);
+  }
+};
+
+// Remove product from wishlist
 export const removeFromWishlist = async (productId) => {
   try {
     const config = getAuthConfig();
-
-    if (!productId) {
-      throw new Error("Product ID is required");
-    }
-
     const { data } = await axios.delete(`/api/wishlist/${productId}`, config);
-    return data; // Backend returns updated wishlist
+    return data;
   } catch (error) {
     const message =
       error.response && error.response.data.message
@@ -90,12 +219,12 @@ export const removeFromWishlist = async (productId) => {
   }
 };
 
-// Clear the entire wishlist
+// Clear entire wishlist
 export const clearWishlist = async () => {
   try {
     const config = getAuthConfig();
     const { data } = await axios.delete("/api/wishlist", config);
-    return data; // Backend returns empty array
+    return data;
   } catch (error) {
     const message =
       error.response && error.response.data.message
