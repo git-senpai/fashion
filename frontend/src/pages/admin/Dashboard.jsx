@@ -9,11 +9,17 @@ import {
   FiClock,
   FiArrowRight,
   FiAlertTriangle,
+  FiMap,
+  FiPieChart,
+  FiBarChart,
+  FiTrendingUp,
 } from "react-icons/fi";
 import { motion } from "framer-motion";
 import { getOrders } from "../../services/orderService";
 import { getAllUsers } from "../../services/userService";
 import { getAllProducts } from "../../services/productService";
+import { getAddresses } from "../../services/addressService";
+import categoryService from "../../services/categoryService";
 import { Button } from "../../components/ui/Button";
 import { toast } from "sonner";
 import { useAuth } from "../../hooks/useAuth";
@@ -29,6 +35,14 @@ const Dashboard = () => {
     totalProducts: 0,
     pendingOrders: 0,
     lowStockProducts: 0,
+    totalAddresses: 0,
+    totalCategories: 0,
+    ordersByStatus: {},
+    productsByCategory: {},
+    revenueByMonth: [],
+    userGrowth: [],
+    topSellingProducts: [],
+    salesByCategory: {},
   });
   const [recentOrders, setRecentOrders] = useState([]);
 
@@ -45,7 +59,7 @@ const Dashboard = () => {
         }
 
         // Fetch data from APIs with fallbacks for each
-        const [orders, users, products] = await Promise.all([
+        const [orders, users, products, addresses, categories] = await Promise.all([
           getOrders().catch((err) => {
             console.error("Error fetching orders:", err);
             if (err.message.includes("Not authorized as admin")) {
@@ -67,9 +81,17 @@ const Dashboard = () => {
             }
             return [];
           }),
+          getAddresses().catch((err) => {
+            console.error("Error fetching addresses:", err);
+            return [];
+          }),
+          categoryService.getCategories().catch((err) => {
+            console.error("Error fetching categories:", err);
+            return [];
+          }),
         ]);
 
-        // Calculate statistics with safe access
+        // Calculate basic statistics with safe access
         const totalSales = Array.isArray(orders)
           ? orders.reduce((sum, order) => sum + (order.totalPrice || 0), 0)
           : 0;
@@ -82,6 +104,104 @@ const Dashboard = () => {
           ? products.filter((product) => (product.countInStock || 0) < 10)
               .length
           : 0;
+          
+        // Calculate orders by status
+        const ordersByStatus = {};
+        if (Array.isArray(orders)) {
+          orders.forEach(order => {
+            const status = order.status || "pending";
+            ordersByStatus[status] = (ordersByStatus[status] || 0) + 1;
+          });
+        }
+        
+        // Calculate products by category
+        const productsByCategory = {};
+        if (Array.isArray(products)) {
+          products.forEach(product => {
+            const category = product.category || "Uncategorized";
+            productsByCategory[category] = (productsByCategory[category] || 0) + 1;
+          });
+        }
+        
+        // Calculate sales by category
+        const salesByCategory = {};
+        if (Array.isArray(orders) && Array.isArray(products)) {
+          orders.forEach(order => {
+            if (Array.isArray(order.orderItems)) {
+              order.orderItems.forEach(item => {
+                const product = products.find(p => p._id === item.product);
+                if (product) {
+                  const category = product.category || "Uncategorized";
+                  const itemTotal = item.price * item.qty;
+                  salesByCategory[category] = (salesByCategory[category] || 0) + itemTotal;
+                }
+              });
+            }
+          });
+        }
+        
+        // Calculate revenue by month (last 6 months)
+        const revenueByMonth = [];
+        if (Array.isArray(orders)) {
+          const now = new Date();
+          for (let i = 5; i >= 0; i--) {
+            const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = month.toLocaleString('default', { month: 'short' });
+            const monthRevenue = orders.reduce((sum, order) => {
+              const orderDate = new Date(order.createdAt);
+              if (orderDate.getMonth() === month.getMonth() && 
+                  orderDate.getFullYear() === month.getFullYear()) {
+                return sum + (order.totalPrice || 0);
+              }
+              return sum;
+            }, 0);
+            revenueByMonth.push({ month: monthName, revenue: monthRevenue });
+          }
+        }
+        
+        // Calculate user growth (last 6 months)
+        const userGrowth = [];
+        if (Array.isArray(users)) {
+          const now = new Date();
+          for (let i = 5; i >= 0; i--) {
+            const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthName = month.toLocaleString('default', { month: 'short' });
+            const newUsers = users.filter(user => {
+              const registerDate = new Date(user.createdAt);
+              return registerDate.getMonth() === month.getMonth() && 
+                     registerDate.getFullYear() === month.getFullYear();
+            }).length;
+            userGrowth.push({ month: monthName, users: newUsers });
+          }
+        }
+        
+        // Calculate top selling products
+        const topSellingProducts = [];
+        if (Array.isArray(orders) && Array.isArray(products)) {
+          const productSales = {};
+          orders.forEach(order => {
+            if (Array.isArray(order.orderItems)) {
+              order.orderItems.forEach(item => {
+                productSales[item.product] = (productSales[item.product] || 0) + item.qty;
+              });
+            }
+          });
+          
+          // Get top 5 products by sales
+          const productIds = Object.keys(productSales).sort((a, b) => productSales[b] - productSales[a]).slice(0, 5);
+          topSellingProducts.push(...productIds.map(id => {
+            const product = products.find(p => p._id === id);
+            return {
+              id,
+              name: product ? product.name : 'Unknown Product',
+              sales: productSales[id],
+              revenue: orders.reduce((sum, order) => {
+                const item = (order.orderItems || []).find(i => i.product === id);
+                return sum + (item ? item.price * item.qty : 0);
+              }, 0)
+            };
+          }));
+        }
 
         setStats({
           totalSales,
@@ -90,6 +210,14 @@ const Dashboard = () => {
           totalProducts: Array.isArray(products) ? products.length : 0,
           pendingOrders,
           lowStockProducts,
+          totalAddresses: Array.isArray(addresses) ? addresses.length : 0,
+          totalCategories: Array.isArray(categories) ? categories.length : 0,
+          ordersByStatus,
+          productsByCategory,
+          revenueByMonth,
+          userGrowth,
+          topSellingProducts,
+          salesByCategory,
         });
 
         // Sort orders by date and get the 5 most recent
@@ -291,6 +419,199 @@ const Dashboard = () => {
           </Link>
         </motion.div>
       </div>
+      
+      {/* Additional Stats */}
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="rounded-lg border border-border bg-card p-6 shadow-sm"
+        >
+          <div className="flex items-center">
+            <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+              <FiMap className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Saved Addresses
+              </p>
+              <h3 className="text-2xl font-bold">{stats.totalAddresses}</h3>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-lg border border-border bg-card p-6 shadow-sm"
+        >
+          <div className="flex items-center">
+            <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+              <FiPieChart className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Product Categories
+              </p>
+              <h3 className="text-2xl font-bold">{stats.totalCategories}</h3>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="rounded-lg border border-border bg-card p-6 shadow-sm"
+        >
+          <div className="flex items-center">
+            <div className="mr-4 flex h-12 w-12 items-center justify-center rounded-full bg-cyan-100 text-cyan-600">
+              <FiTrendingUp className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">
+                Average Order Value
+              </p>
+              <h3 className="text-2xl font-bold">
+                {stats.totalOrders > 0 
+                  ? formatCurrency(stats.totalSales / stats.totalOrders) 
+                  : formatCurrency(0)}
+              </h3>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Data Visualizations */}
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Monthly Revenue */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="rounded-lg border border-border bg-card p-6 shadow-sm"
+        >
+          <h3 className="mb-4 text-lg font-semibold">Revenue (Last 6 Months)</h3>
+          <div className="h-64">
+            <div className="flex h-full flex-col justify-end space-x-2">
+              <div className="flex h-full items-end space-x-2">
+                {stats.revenueByMonth.map((item, index) => {
+                  const maxRevenue = Math.max(...stats.revenueByMonth.map(i => i.revenue));
+                  const height = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0;
+                  
+                  return (
+                    <div key={index} className="flex w-full flex-col items-center">
+                      <div 
+                        className="w-full rounded-t bg-primary" 
+                        style={{ height: `${height}%`, minHeight: item.revenue > 0 ? '10%' : '0' }}
+                      ></div>
+                      <div className="mt-2 text-xs text-muted-foreground">{item.month}</div>
+                      <div className="text-xs font-medium">{formatCurrency(item.revenue)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Order Status Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="rounded-lg border border-border bg-card p-6 shadow-sm"
+        >
+          <h3 className="mb-4 text-lg font-semibold">Orders by Status</h3>
+          <div className="space-y-4">
+            {Object.entries(stats.ordersByStatus).map(([status, count]) => {
+              const percentage = stats.totalOrders > 0 
+                ? Math.round((count / stats.totalOrders) * 100) 
+                : 0;
+              
+              return (
+                <div key={status} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="capitalize text-sm font-medium">
+                      {status} 
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        ({count} orders)
+                      </span>
+                    </span>
+                    <span className="text-sm font-medium">{percentage}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={`h-full rounded-full ${
+                        status === 'delivered' ? 'bg-green-500' :
+                        status === 'shipped' ? 'bg-blue-500' :
+                        status === 'processing' ? 'bg-purple-500' :
+                        status === 'cancelled' ? 'bg-red-500' : 'bg-yellow-500'
+                      }`}
+                      style={{ width: `${percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Top Selling Products */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.7 }}
+        className="mb-8 rounded-lg border border-border bg-card p-6 shadow-sm"
+      >
+        <h3 className="mb-4 text-lg font-semibold">Top Selling Products</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-full">
+            <thead>
+              <tr className="border-b border-border text-left text-xs font-medium text-muted-foreground">
+                <th className="pb-2 pl-0 pr-4 pt-0">Product</th>
+                <th className="px-4 py-0">Units Sold</th>
+                <th className="px-4 py-0">Revenue</th>
+                <th className="pl-4 pr-0 py-0 text-right">Details</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {stats.topSellingProducts.length > 0 ? (
+                stats.topSellingProducts.map((product) => (
+                  <tr key={product.id} className="text-sm">
+                    <td className="whitespace-nowrap py-3 pl-0 pr-4 font-medium">
+                      {product.name}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">{product.sales}</td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {formatCurrency(product.revenue)}
+                    </td>
+                    <td className="whitespace-nowrap py-3 pl-4 pr-0 text-right">
+                      <Link to={`/admin/products/${product.id}`}>
+                        <Button variant="ghost" size="sm">
+                          View
+                        </Button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td 
+                    colSpan="4" 
+                    className="py-4 text-center text-muted-foreground"
+                  >
+                    No product sales data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </motion.div>
 
       {/* Recent Orders */}
       <div className="rounded-lg border border-border bg-card shadow-sm">
