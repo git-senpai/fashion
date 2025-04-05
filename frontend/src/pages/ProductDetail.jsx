@@ -1,124 +1,56 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import {
-  FiShoppingCart,
-  FiHeart,
-  FiStar,
-  FiChevronRight,
-  FiChevronLeft,
-  FiUpload,
-  FiX,
-  FiFolder,
-  FiPlus,
-} from "react-icons/fi";
-import { motion } from "framer-motion";
-import {
-  getProductDetails,
-  createProductReview,
-  getProducts,
-} from "../services/productService";
-import { useCartStore } from "../store/useCartStore";
+import { getProductDetails } from "../services/productService";
 import { useWishlistStore } from "../store/useWishlistStore";
 import { useAuth } from "../hooks/useAuth";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { FormGroup, FormLabel, FormMessage } from "../components/ui/Form";
-import { ProductCard } from "../components/ProductCard";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { toast } from "sonner";
 
+// Import all product components from the barrel file
+import {
+  ProductGallery,
+  ProductInfo,
+  ProductActions,
+  ProductSizeSelector,
+  ProductTabs,
+  RelatedProducts,
+  Breadcrumbs,
+  WishlistModal,
+} from "../components/product";
+
 const ProductDetail = () => {
   const { id } = useParams();
-  const { addToCart } = useCartStore();
-  const { 
-    addToWishlist, 
-    removeFromWishlist, 
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const {
+    addToWishlist,
+    removeFromWishlist,
     isInWishlist,
     collections,
     createCollection,
-    addProductToCollection,
-    initCollections
+    initCollections,
   } = useWishlistStore();
-  const { user, isAuthenticated } = useAuth();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState("");
-  const [currentImage, setCurrentImage] = useState(0);
-  const [reviewForm, setReviewForm] = useState({
-    rating: 5,
-    comment: "",
-    images: [],
-  });
-  const [reviewImages, setReviewImages] = useState([]);
-  const [previewImages, setPreviewImages] = useState([]);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState("");
-  const [activeTab, setActiveTab] = useState("description");
-  const [addingToCart, setAddingToCart] = useState(false);
-  const [addingToWishlist, setAddingToWishlist] = useState(false);
-  const [discountPercentage, setDiscountPercentage] = useState(0);
-  const [originalPrice, setOriginalPrice] = useState(0);
-  const [relatedProducts, setRelatedProducts] = useState([]);
-  const [loadingRelated, setLoadingRelated] = useState(false);
   const [showWishlistModal, setShowWishlistModal] = useState(false);
-  const [showNewCollectionModal, setShowNewCollectionModal] = useState(false);
-  const [newCollectionName, setNewCollectionName] = useState("");
-  
-  const newCollectionInputRef = useRef(null);
-  
-  const navigate = useNavigate();
+  const [addingToWishlist, setAddingToWishlist] = useState(false);
 
   // Check if the product is in the wishlist
   const productInWishlist = product ? isInWishlist(product._id) : false;
 
-  // Calculate original price and savings if there's a discount
-  const calculateOriginalPrice = (price, discount) => {
-    if (discount > 0) {
-      return price / (1 - discount / 100);
-    }
-    return price;
-  };
-
-  const calculateSavings = (price, discount) => {
-    if (discount > 0) {
-      const originalPrice = calculateOriginalPrice(price, discount);
-      return originalPrice - price;
-    }
-    return 0;
-  };
-
+  // Fetch product details
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        console.log("Fetching product with ID:", id);
         const data = await getProductDetails(id);
-        console.log("Product data received:", data);
         setProduct(data);
-
-        // Use product's discount percentage or default to 0
-        const discountPercent = data.discountPercentage || 0;
-        setDiscountPercentage(discountPercent);
-
-        // Calculate original price based on the discount
-        if (data && data.price && discountPercent > 0) {
-          // If there's a discount, calculate the original price before discount
-          // Original price = discounted price / (1 - discount/100)
-          const calculatedOriginalPrice = data.price / (1 - discountPercent / 100);
-          setOriginalPrice(calculatedOriginalPrice);
-        } else {
-          // If no discount, original price = current price
-          setOriginalPrice(data.price || 0);
-        }
-
-        // Fetch related products from the same category
-        if (data && data.category) {
-          fetchRelatedProducts(data.category, data._id);
-        }
       } catch (error) {
         console.error("Error fetching product:", error);
+        toast.error("Failed to load product details");
       } finally {
         setLoading(false);
       }
@@ -127,75 +59,14 @@ const ProductDetail = () => {
     fetchProduct();
   }, [id]);
 
-  // Function to fetch related products from the same category
-  const fetchRelatedProducts = async (category, currentProductId) => {
-    try {
-      setLoadingRelated(true);
-      // Query products by category
-      const result = await getProducts("", "", category);
-      
-      // Filter out the current product and limit to 4 related products
-      const filtered = result.products
-        .filter(prod => prod._id !== currentProductId)
-        .slice(0, 4);
-      
-      setRelatedProducts(filtered);
-    } catch (error) {
-      console.error("Error fetching related products:", error);
-    } finally {
-      setLoadingRelated(false);
+  // Initialize wishlist collections when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      initCollections();
     }
-  };
+  }, [isAuthenticated, initCollections]);
 
-  const handleAddToCart = async () => {
-    try {
-      if (product.countInStock === 0) {
-        toast.error("This product is out of stock");
-        return;
-      }
-
-      if (product.sizeQuantities && product.sizeQuantities.length > 0 && !selectedSize) {
-        toast.error("Please select a size");
-        return;
-      }
-      
-      // Check if the selected size has enough stock
-      if (selectedSize) {
-        const sizeInfo = product.sizeQuantities.find(sq => sq.size === selectedSize);
-        if (!sizeInfo) {
-          toast.error("Selected size not found");
-          return;
-        }
-        
-        if (sizeInfo.quantity < quantity) {
-          toast.error(`Only ${sizeInfo.quantity} items available for size ${selectedSize}`);
-          return;
-        }
-      }
-
-      setAddingToCart(true);
-
-      // Create cart item object
-      const cartItem = {
-        productId: product._id,
-        name: product.name,
-        image: productImages[0],
-        price: product.price,
-        countInStock: product.countInStock,
-        quantity,
-        size: selectedSize || null,
-      };
-
-      await addToCart(cartItem);
-      toast.success(`${product.name} added to cart`);
-    } catch (error) {
-      console.error("Error adding to cart:", error);
-      toast.error(error.message || "Failed to add to cart");
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
+  // Handle wishlist actions
   const handleWishlistToggle = async () => {
     if (!product) return;
 
@@ -225,246 +96,63 @@ const ProductDetail = () => {
       setShowWishlistModal(true);
     } else {
       // No collections, add directly to main wishlist
-      setAddingToWishlist(true);
-      try {
-        await addToWishlist(product);
-        toast.success(`${product.name} added to wishlist`);
-      } catch (error) {
-        console.error("Error adding to wishlist:", error);
-        toast.error(error.message || "Failed to add to wishlist");
-      } finally {
-        setAddingToWishlist(false);
-      }
+      addToMainWishlist();
     }
   };
 
-  const handleAddToMainWishlist = async () => {
+  const addToMainWishlist = async () => {
     setShowWishlistModal(false);
     setAddingToWishlist(true);
     try {
       await addToWishlist(product);
+      toast.success(`${product.name} added to wishlist`);
     } catch (error) {
-      console.error("Error adding to main wishlist:", error);
+      console.error("Error adding to wishlist:", error);
+      toast.error(error.message || "Failed to add to wishlist");
     } finally {
       setAddingToWishlist(false);
     }
   };
 
-  const handleAddToCollection = async (collectionId) => {
+  const addToCollection = async (collectionId) => {
     setShowWishlistModal(false);
     setAddingToWishlist(true);
     try {
       await addToWishlist(product, collectionId);
+      toast.success(`${product.name} added to collection`);
     } catch (error) {
       console.error("Error adding to collection:", error);
+      toast.error(error.message || "Failed to add to collection");
     } finally {
       setAddingToWishlist(false);
     }
   };
-  
-  const handleCreateCollection = async (e) => {
-    e.preventDefault();
-    
-    if (!newCollectionName.trim()) {
-      toast.error("Please enter a collection name");
-      return;
-    }
-    
+
+  const handleCreateCollection = async (name) => {
     try {
-      const newCollections = await createCollection(newCollectionName);
-      setNewCollectionName("");
-      setShowNewCollectionModal(false);
-      
+      const newCollections = await createCollection(name);
+
       // If we have the new collection, add the product to it
       if (newCollections && newCollections.length > 0) {
         const newCollection = newCollections[newCollections.length - 1];
-        handleAddToCollection(newCollection._id);
+        addToCollection(newCollection._id);
       }
     } catch (error) {
       toast.error(error.message || "Failed to create collection");
     }
   };
 
-  const handleQuantityChange = (e) => {
-    const value = parseInt(e.target.value);
-    if (!isNaN(value) && value > 0 && value <= (product?.countInStock || 1)) {
-      setQuantity(value);
-    }
-  };
-
-  const handleReviewChange = (e) => {
-    const { name, value } = e.target;
-    setReviewForm({
-      ...reviewForm,
-      [name]: name === "rating" ? parseInt(value) : value,
-    });
-  };
-
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    
-    if (files.length === 0) return;
-    
-    // Limit to 5 images total
-    if (previewImages.length + files.length > 5) {
-      toast.error("You can upload a maximum of 5 images per review");
-      return;
-    }
-    
-    // Create preview URLs and add files to state
-    const newPreviewImages = [...previewImages];
-    const newReviewImages = [...reviewImages];
-    
-    files.forEach(file => {
-      // Validate file type
-      if (!file.type.match('image.*')) {
-        toast.error(`File ${file.name} is not an image`);
-        return;
-      }
-      
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error(`Image ${file.name} exceeds 5MB size limit`);
-        return;
-      }
-      
-      const previewUrl = URL.createObjectURL(file);
-      newPreviewImages.push(previewUrl);
-      newReviewImages.push(file);
-    });
-    
-    setPreviewImages(newPreviewImages);
-    setReviewImages(newReviewImages);
-    
-    // Update review form
-    setReviewForm({
-      ...reviewForm,
-      images: newReviewImages,
-    });
-  };
-
-  const removeImage = (index) => {
-    // Release object URL to avoid memory leaks
-    URL.revokeObjectURL(previewImages[index]);
-    
-    const newPreviewImages = [...previewImages];
-    const newReviewImages = [...reviewImages];
-    
-    newPreviewImages.splice(index, 1);
-    newReviewImages.splice(index, 1);
-    
-    setPreviewImages(newPreviewImages);
-    setReviewImages(newReviewImages);
-    
-    // Update review form
-    setReviewForm({
-      ...reviewForm,
-      images: newReviewImages,
-    });
-  };
-
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    if (!reviewForm.comment.trim()) {
-      setReviewError("Please enter a comment");
-      return;
-    }
-
+  const handleReviewSubmitted = async () => {
+    // Refresh product data after a review is submitted
     try {
-      setReviewSubmitting(true);
-      setReviewError("");
-
-      if (!user) {
-        toast.error("You must be logged in to submit a review");
-        return;
-      }
-
-      // Create FormData to send text fields and images
-      const formData = new FormData();
-      formData.append('rating', reviewForm.rating);
-      formData.append('comment', reviewForm.comment);
-      
-      // Append each image to the form data
-      reviewImages.forEach((image, index) => {
-        formData.append('images', image);
-      });
-
-      await createProductReview(id, formData, user.token);
-      toast.success("Review submitted successfully");
-
-      // Refetch product to get updated reviews
       const updatedProduct = await getProductDetails(id);
       setProduct(updatedProduct);
-
-      // Reset form
-      setReviewForm({
-        rating: 5,
-        comment: "",
-        images: [],
-      });
-      setReviewImages([]);
-      setPreviewImages([]);
     } catch (error) {
-      console.error("Error submitting review:", error);
-      setReviewError(
-        error.message || "Failed to submit review. Please try again."
-      );
-      toast.error(error.message || "Failed to submit review");
-    } finally {
-      setReviewSubmitting(false);
+      console.error("Error refreshing product data:", error);
     }
   };
 
-  const nextImage = () => {
-    if (productImages.length > 1) {
-      setCurrentImage((prev) =>
-        prev === productImages.length - 1 ? 0 : prev + 1
-      );
-    }
-  };
-
-  const prevImage = () => {
-    if (productImages.length > 1) {
-      setCurrentImage((prev) =>
-        prev === 0 ? productImages.length - 1 : prev - 1
-      );
-    }
-  };
-
-  // Prepare image list
-  const productImages = (() => {
-    if (!product) return [];
-
-    // If product has an images array and it's not empty
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      return product.images;
-    }
-    // If product has a single image property
-    else if (product.image) {
-      return [product.image];
-    }
-    // Fallback to placeholder
-    else {
-      return ["https://placehold.co/600x400?text=No+Image"];
-    }
-  })();
-
-  // Focus input when new collection modal opens
-  useEffect(() => {
-    if (showNewCollectionModal && newCollectionInputRef.current) {
-      setTimeout(() => {
-        newCollectionInputRef.current.focus();
-      }, 100);
-    }
-  }, [showNewCollectionModal]);
-  
-  // Load collections when the component mounts if the user is authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      initCollections();
-    }
-  }, [isAuthenticated, initCollections]);
-
+  // Loading state
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -492,6 +180,7 @@ const ProductDetail = () => {
     );
   }
 
+  // Product not found
   if (!product) {
     return (
       <div className="container mx-auto flex min-h-[50vh] flex-col items-center justify-center px-4 py-8 text-center">
@@ -510,629 +199,75 @@ const ProductDetail = () => {
     );
   }
 
+  // Prepare image list for gallery
+  const productImages = (() => {
+    // If product has an images array and it's not empty
+    if (Array.isArray(product.images) && product.images.length > 0) {
+      return product.images;
+    }
+    // If product has a single image property
+    else if (product.image) {
+      return [product.image];
+    }
+    // Fallback to placeholder
+    else {
+      return ["https://placehold.co/600x400?text=No+Image"];
+    }
+  })();
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Breadcrumbs */}
-      <div className="mb-6 flex items-center text-sm text-muted-foreground">
-        <Link to="/" className="hover:text-primary">
-          Home
-        </Link>
-        <FiChevronRight className="mx-2 h-4 w-4" />
-        <Link to="/products" className="hover:text-primary">
-          Products
-        </Link>
-        <FiChevronRight className="mx-2 h-4 w-4" />
-        <span>{product.category}</span>
-        <FiChevronRight className="mx-2 h-4 w-4" />
-        <span className="text-foreground">{product.name}</span>
-      </div>
+      <Breadcrumbs product={product} />
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-        {/* Product Images */}
-        <div>
-          <div className="relative mb-4 overflow-hidden rounded-lg bg-gray-100">
-            <img
-              src={
-                productImages[currentImage] ||
-                "https://placehold.co/600x400?text=No+Image"
-              }
-              alt={product.name}
-              className="h-[400px] w-full object-cover object-center"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src =
-                  "https://placehold.co/600x400?text=Image+Not+Found";
-              }}
-            />
-
-            {/* Discount Tag */}
-            {product.discountPercentage > 0 && (
-              <div className="absolute left-0 top-0 bg-green-500 text-white px-2 py-1 text-xs font-bold shadow-md z-10">
-                {product.discountPercentage}% OFF
-              </div>
-            )}
-
-            {productImages.length > 1 && (
-              <>
-                <button
-                  onClick={prevImage}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md transition-all hover:bg-white"
-                >
-                  <FiChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={nextImage}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 p-2 shadow-md transition-all hover:bg-white"
-                >
-                  <FiChevronRight className="h-5 w-5" />
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Thumbnail Images */}
-          {productImages.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
-              {productImages.map((image, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentImage(index)}
-                  className={`overflow-hidden rounded-md border-2 ${
-                    currentImage === index
-                      ? "border-primary"
-                      : "border-transparent"
-                  }`}
-                >
-                  <img
-                    src={image}
-                    alt={`${product.name} ${index + 1}`}
-                    className="h-20 w-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src =
-                        "https://placehold.co/300x200?text=Thumbnail";
-                    }}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Product Gallery */}
+        <ProductGallery images={productImages} productName={product.name} />
 
         {/* Product Info */}
         <div>
-          <h1 className="mb-2 text-3xl font-bold">{product.name}</h1>
+          {/* Basic Info */}
+          <ProductInfo product={product} />
 
-          {/* Rating */}
-          <div className="mb-4 flex items-center">
-            <div className="flex items-center">
-              {Array(5)
-                .fill()
-                .map((_, index) => (
-                  <FiStar
-                    key={index}
-                    className={`h-4 w-4 ${
-                      index < Math.round(product.rating)
-                        ? "fill-yellow-400 text-yellow-400"
-                        : "text-gray-300"
-                    }`}
-                  />
-                ))}
-            </div>
-            <span className="ml-2 text-sm text-muted-foreground">
-              {product.rating.toFixed(1)} ({product.numReviews} reviews)
-            </span>
-          </div>
+          {/* Size Selector */}
+          <ProductSizeSelector
+            sizeQuantities={product.sizeQuantities}
+            selectedSize={selectedSize}
+            onSelectSize={setSelectedSize}
+          />
 
-          {/* Price */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2">
-              {product.discountPercentage > 0 ? (
-                <>
-                  <span className="text-2xl font-bold text-[#e84a7f]">
-                    ${product.price.toFixed(2)}
-                  </span>
-                  <span className="text-lg text-muted-foreground line-through">
-                    ${calculateOriginalPrice(product.price, product.discountPercentage).toFixed(2)}
-                  </span>
-                  <span className="rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
-                    {product.discountPercentage}% OFF
-                  </span>
-                </>
-              ) : (
-                <span className="text-2xl font-bold">
-                  ${product.price.toFixed(2)}
-                </span>
-              )}
-            </div>
-            {product.discountPercentage > 0 && (
-              <div className="mt-1 text-sm text-green-600">
-                You save: ${calculateSavings(product.price, product.discountPercentage).toFixed(2)}
-              </div>
-            )}
-          </div>
+          {/* Add to Cart & Wishlist */}
+          <ProductActions
+            product={product}
+            selectedSize={selectedSize}
+            productInWishlist={productInWishlist}
+            onToggleWishlist={handleWishlistToggle}
+            isAuthenticated={isAuthenticated}
+          />
 
-          {/* Stock Status */}
-          <div className="mb-6">
-            <span
-              className={`text-sm font-medium ${
-                product.countInStock > 0 ? "text-green-600" : "text-red-600"
-              }`}
-            >
-              {product.countInStock > 0
-                ? `In Stock (${product.countInStock} available)`
-                : "Out of Stock"}
-            </span>
-          </div>
-          
-          {/* Size Selection */}
-          {product.sizeQuantities && product.sizeQuantities.length > 0 && (
-            <div className="mb-6">
-              <h3 className="mb-2 text-sm font-medium">Select Size</h3>
-              <div className="flex flex-wrap gap-2">
-                {product.sizeQuantities.map((sizeQty) => (
-                  <button
-                    key={sizeQty.size}
-                    type="button"
-                    onClick={() => setSelectedSize(sizeQty.size)}
-                    disabled={sizeQty.quantity === 0}
-                    className={`flex h-10 min-w-[3rem] items-center justify-center rounded-md border px-3 transition-colors ${
-                      selectedSize === sizeQty.size
-                        ? "border-primary bg-primary/10 font-medium text-primary"
-                        : sizeQty.quantity === 0
-                        ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    {sizeQty.size}
-                    {sizeQty.quantity === 0 && <span className="ml-1">(Out of stock)</span>}
-                  </button>
-                ))}
-              </div>
-              {selectedSize && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {product.sizeQuantities.find(sq => sq.size === selectedSize)?.quantity || 0} items available in size {selectedSize}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Add to Cart */}
-          <div className="mb-8 flex flex-wrap items-center gap-4">
-            <div className="w-24">
-              <Input
-                type="number"
-                value={quantity}
-                onChange={handleQuantityChange}
-                min={1}
-                max={product.countInStock}
-                disabled={product.countInStock === 0}
-              />
-            </div>
-            <Button
-              onClick={handleAddToCart}
-              disabled={product.countInStock === 0 || addingToCart}
-              className="flex items-center gap-2"
-            >
-              {addingToCart ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <FiShoppingCart className="h-4 w-4" />
-                  Add to Cart
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={handleWishlistToggle}
-              disabled={addingToWishlist}
-            >
-              {addingToWishlist ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <FiHeart
-                    className={`h-4 w-4 ${
-                      productInWishlist ? "fill-red-500 text-red-500" : ""
-                    }`}
-                  />
-                  {productInWishlist
-                    ? "Remove from Wishlist"
-                    : "Add to Wishlist"}
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Product Details Tabs */}
-          <div className="mb-4 border-b border-border">
-            <div className="flex space-x-4">
-              <button
-                onClick={() => setActiveTab("description")}
-                className={`border-b-2 pb-2 text-sm font-medium ${
-                  activeTab === "description"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground"
-                }`}
-              >
-                Description
-              </button>
-              <button
-                onClick={() => setActiveTab("specifications")}
-                className={`border-b-2 pb-2 text-sm font-medium ${
-                  activeTab === "specifications"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground"
-                }`}
-              >
-                Specifications
-              </button>
-              <button
-                onClick={() => setActiveTab("reviews")}
-                className={`border-b-2 pb-2 text-sm font-medium ${
-                  activeTab === "reviews"
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground"
-                }`}
-              >
-                Reviews ({product.numReviews})
-              </button>
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="pb-6">
-            {activeTab === "description" && (
-              <div className="prose max-w-none text-sm">
-                <p>{product.description}</p>
-              </div>
-            )}
-
-            {activeTab === "specifications" && (
-              <div className="space-y-4 text-sm">
-                <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
-                  <span className="font-medium">Brand</span>
-                  <span>{product.brand}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm">
-                  <span className="font-medium">Category</span>
-                  <span>{product.category}</span>
-                </div>
-                
-                {/* Display available sizes and their stock */}
-                {product.sizeQuantities && product.sizeQuantities.length > 0 && (
-                  <div className="rounded-md bg-muted p-3">
-                    <span className="block font-medium mb-2">Available Sizes</span>
-                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {product.sizeQuantities
-                        .filter(sq => sq.quantity > 0)
-                        .map(sq => (
-                          <div key={sq.size} className="text-center rounded bg-white p-1.5 border border-gray-200">
-                            <span className="block font-medium">{sq.size}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {sq.quantity} in stock
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-                
-                {product.specifications?.map((spec, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-2 gap-2 rounded-md bg-muted p-3 text-sm"
-                  >
-                    <span className="font-medium">{spec.name}</span>
-                    <span>{spec.value}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {activeTab === "reviews" && (
-              <div className="space-y-6">
-                {/* Review Form */}
-                {isAuthenticated ? (
-                  <div className="mb-6 rounded-lg border border-border p-4">
-                    <h3 className="mb-4 text-lg font-semibold">
-                      Write a Review
-                    </h3>
-                    <form onSubmit={handleReviewSubmit}>
-                      <FormGroup>
-                        <FormLabel>Rating</FormLabel>
-                        <div className="flex items-center space-x-1">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              type="button"
-                              onClick={() =>
-                                setReviewForm({ ...reviewForm, rating: star })
-                              }
-                              className="p-1"
-                            >
-                              <FiStar
-                                className={`h-5 w-5 ${
-                                  star <= reviewForm.rating
-                                    ? "fill-yellow-400 text-yellow-400"
-                                    : "text-gray-300"
-                                }`}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </FormGroup>
-                      <FormGroup>
-                        <FormLabel>Your Review</FormLabel>
-                        <textarea
-                          name="comment"
-                          value={reviewForm.comment}
-                          onChange={handleReviewChange}
-                          rows={4}
-                          className="w-full rounded-md border border-input bg-background p-2 text-sm"
-                        />
-                        {reviewError && (
-                          <FormMessage>{reviewError}</FormMessage>
-                        )}
-                      </FormGroup>
-                      
-                      {/* Image Upload Section */}
-                      <FormGroup>
-                        <FormLabel>Add Photos (optional - max 5)</FormLabel>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {/* Show preview of uploaded images */}
-                          {previewImages.map((preview, index) => (
-                            <div key={index} className="relative h-20 w-20 rounded-md overflow-hidden group">
-                              <img 
-                                src={preview} 
-                                alt={`Review upload ${index + 1}`} 
-                                className="h-full w-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeImage(index)}
-                                className="absolute top-1 right-1 rounded-full bg-foreground/50 p-1 text-white hover:bg-foreground transition-colors"
-                              >
-                                <FiX size={14} />
-                              </button>
-                            </div>
-                          ))}
-                          
-                          {/* Upload button (only show if less than 5 images) */}
-                          {previewImages.length < 5 && (
-                            <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-md border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-colors">
-                              <FiUpload className="mb-1 h-6 w-6 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Upload</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                onChange={handleImageUpload}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Supported formats: JPG, PNG, GIF (max 5MB each)
-                        </p>
-                      </FormGroup>
-                      
-                      <Button type="submit" disabled={reviewSubmitting}>
-                        {reviewSubmitting ? "Submitting..." : "Submit Review"}
-                      </Button>
-                    </form>
-                  </div>
-                ) : (
-                  <div className="mb-6 rounded-lg border border-border p-4 text-center">
-                    <p className="mb-2 text-muted-foreground">
-                      Please sign in to write a review
-                    </p>
-                    <Link to="/login" className="text-primary hover:underline">
-                      Sign In
-                    </Link>
-                  </div>
-                )}
-
-                {/* Reviews List - Update to show review images */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Customer Reviews</h3>
-
-                  {product.reviews && product.reviews.length > 0 ? (
-                    <div className="space-y-4">
-                      {product.reviews.map((review) => (
-                        <div
-                          key={review._id}
-                          className="rounded-lg border border-border p-4"
-                        >
-                          <div className="mb-2 flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div className="mr-3 h-8 w-8 rounded-full bg-muted text-center leading-8">
-                                {review.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="font-medium">{review.name}</p>
-                                <div className="flex items-center">
-                                  {Array(5)
-                                    .fill()
-                                    .map((_, index) => (
-                                      <FiStar
-                                        key={index}
-                                        className={`h-3 w-3 ${
-                                          index < review.rating
-                                            ? "fill-yellow-400 text-yellow-400"
-                                            : "text-gray-300"
-                                        }`}
-                                      />
-                                    ))}
-                                </div>
-                              </div>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(review.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-sm mb-3">{review.comment}</p>
-                          
-                          {/* Display review images if available */}
-                          {review.images && review.images.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {review.images.map((image, index) => (
-                                <div key={index} className="h-20 w-20 rounded-md overflow-hidden">
-                                  <img 
-                                    src={image} 
-                                    alt={`Review image ${index + 1}`} 
-                                    className="h-full w-full object-cover"
-                                    onClick={() => window.open(image, '_blank')}
-                                    style={{ cursor: 'pointer' }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No reviews yet</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Product Tabs (Description, Specifications, Reviews) */}
+          <ProductTabs
+            product={product}
+            user={user}
+            isAuthenticated={isAuthenticated}
+            onReviewSubmitted={handleReviewSubmitted}
+          />
         </div>
       </div>
-      
+
       {/* Related Products Section */}
-      <div className="mt-16">
-        <h2 className="mb-6 text-2xl font-bold">Related Products</h2>
-        
-        {loadingRelated ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} height={350} className="rounded-lg" />
-            ))}
-          </div>
-        ) : relatedProducts.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {relatedProducts.map((relatedProduct) => (
-              <ProductCard key={relatedProduct._id} product={relatedProduct} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-muted-foreground">No related products found.</p>
-        )}
-      </div>
-      
+      <RelatedProducts productId={product._id} category={product.category} />
+
       {/* Wishlist Collection Modal */}
-      {showWishlistModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Add to Wishlist</h3>
-              <button 
-                onClick={() => setShowWishlistModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <button
-                onClick={handleAddToMainWishlist}
-                className="w-full text-left p-3 rounded-md hover:bg-gray-100 flex items-center mb-2"
-              >
-                <FiHeart className="mr-2 text-primary" /> Add to main wishlist
-              </button>
-              
-              <div className="border-t border-gray-200 my-3 pt-3">
-                <h4 className="text-sm font-medium mb-2 text-gray-700">Or add to a collection:</h4>
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {collections.map(collection => (
-                    <button
-                      key={collection._id}
-                      onClick={() => handleAddToCollection(collection._id)}
-                      className="w-full text-left p-2 rounded-md hover:bg-gray-100 flex items-center"
-                    >
-                      <FiFolder className="mr-2 text-gray-500" />
-                      {collection.name}
-                      <span className="ml-auto text-xs text-gray-500">
-                        {collection.products.length} items
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <button
-                onClick={() => {
-                  setShowWishlistModal(false);
-                  setShowNewCollectionModal(true);
-                }}
-                className="w-full mt-4 flex items-center justify-center p-2 rounded-md border border-dashed border-gray-300 text-gray-500 hover:text-primary hover:border-primary transition-colors"
-              >
-                <FiPlus className="mr-2" /> Create New Collection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* New Collection Modal */}
-      {showNewCollectionModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Create New Collection</h3>
-              <button 
-                onClick={() => setShowNewCollectionModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FiX size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCollection}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Collection Name</label>
-                <input
-                  ref={newCollectionInputRef}
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(e) => setNewCollectionName(e.target.value)}
-                  placeholder="e.g., Summer Favorites"
-                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  maxLength={30}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewCollectionModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
-                  disabled={!newCollectionName.trim()}
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <WishlistModal
+        isOpen={showWishlistModal}
+        onClose={() => setShowWishlistModal(false)}
+        collections={collections || []}
+        onAddToMainWishlist={addToMainWishlist}
+        onAddToCollection={addToCollection}
+        onCreateCollection={handleCreateCollection}
+        productName={product.name}
+      />
     </div>
   );
 };
