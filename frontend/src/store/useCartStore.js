@@ -113,8 +113,8 @@ export const useCartStore = create(
 
             // Check if product already exists in cart with the same size
             const existingItemIndex = cartItems.findIndex(
-              (item) => 
-                item.productId === cartItem.productId && 
+              (item) =>
+                item.productId === cartItem.productId &&
                 item.size === cartItem.size
             );
 
@@ -128,11 +128,16 @@ export const useCartStore = create(
               );
             } else {
               // Add new item if product doesn't exist or has different size
-              updatedCart = [...cartItems, {
-                ...cartItem,
-                quantity: parsedQuantity,
-                _id: cartItem.productId + (cartItem.size ? `-${cartItem.size}` : '')
-              }];
+              updatedCart = [
+                ...cartItems,
+                {
+                  ...cartItem,
+                  quantity: parsedQuantity,
+                  _id:
+                    cartItem.productId +
+                    (cartItem.size ? `-${cartItem.size}` : ""),
+                },
+              ];
             }
 
             set({
@@ -217,11 +222,13 @@ export const useCartStore = create(
           } else {
             // User is not logged in, update local state
             const { cartItems } = get();
-            
+
             // If size is provided, only remove items with that specific size
-            const updatedCart = size 
-              ? cartItems.filter(item => !(item._id === productId && item.size === size))
-              : cartItems.filter(item => item._id !== productId);
+            const updatedCart = size
+              ? cartItems.filter(
+                  (item) => !(item._id === productId && item.size === size)
+                )
+              : cartItems.filter((item) => item._id !== productId);
 
             set({
               cartItems: updatedCart,

@@ -41,13 +41,13 @@ export const useWishlistStore = create(
       initWishlist: async () => {
         // Only initialize if user is logged in
         if (!isUserLoggedIn()) {
-          set({ 
-            wishlistItems: [], 
+          set({
+            wishlistItems: [],
             collections: [],
-            loading: false, 
+            loading: false,
             collectionsLoading: false,
             error: null,
-            collectionsError: null 
+            collectionsError: null,
           });
           return;
         }
@@ -57,7 +57,7 @@ export const useWishlistStore = create(
           const wishlistItems = await wishlistService.getWishlist();
           console.log("Wishlist items from API:", wishlistItems);
           set({ wishlistItems, loading: false });
-          
+
           // Also load collections
           get().initCollections();
         } catch (error) {
@@ -69,12 +69,16 @@ export const useWishlistStore = create(
           toast.error(error.message || "Failed to load your wishlist");
         }
       },
-      
+
       // Initialize collections from backend
       initCollections: async () => {
         // Only initialize if user is logged in
         if (!isUserLoggedIn()) {
-          set({ collections: [], collectionsLoading: false, collectionsError: null });
+          set({
+            collections: [],
+            collectionsLoading: false,
+            collectionsError: null,
+          });
           return;
         }
 
@@ -86,10 +90,13 @@ export const useWishlistStore = create(
         } catch (error) {
           console.error("Failed to initialize wishlist collections:", error);
           set({
-            collectionsError: error.message || "Failed to load wishlist collections",
+            collectionsError:
+              error.message || "Failed to load wishlist collections",
             collectionsLoading: false,
           });
-          toast.error(error.message || "Failed to load your wishlist collections");
+          toast.error(
+            error.message || "Failed to load your wishlist collections"
+          );
         }
       },
 
@@ -97,30 +104,30 @@ export const useWishlistStore = create(
       setActiveCollection: (collectionId) => {
         set({ activeCollection: collectionId });
       },
-      
+
       // Get items for the active collection
       getActiveCollectionItems: () => {
         const { activeCollection, wishlistItems, collections } = get();
-        
+
         if (activeCollection === "all") {
           // For "all" view, combine main wishlist and all collections
-          const collectionItems = collections.flatMap(c => c.products);
+          const collectionItems = collections.flatMap((c) => c.products);
           const allItems = [...wishlistItems, ...collectionItems];
-          
+
           // Remove duplicates by ID (if any product appears in both main wishlist and collections)
           const uniqueIds = new Set();
-          return allItems.filter(item => {
+          return allItems.filter((item) => {
             const id = item._id || item;
             if (uniqueIds.has(id)) return false;
             uniqueIds.add(id);
             return true;
           });
         }
-        
-        const collection = collections.find(c => c._id === activeCollection);
+
+        const collection = collections.find((c) => c._id === activeCollection);
         return collection ? collection.products : [];
       },
-      
+
       // Create a new collection
       createCollection: async (name) => {
         // Check if user is authenticated
@@ -131,7 +138,9 @@ export const useWishlistStore = create(
 
         try {
           set({ collectionsLoading: true, collectionsError: null });
-          const collections = await wishlistService.createWishlistCollection(name);
+          const collections = await wishlistService.createWishlistCollection(
+            name
+          );
           set({ collections, collectionsLoading: false });
           toast.success(`Collection "${name}" created`);
           return collections;
@@ -144,7 +153,7 @@ export const useWishlistStore = create(
           toast.error(error.message || "Failed to create collection");
         }
       },
-      
+
       // Delete a collection
       deleteCollection: async (collectionId) => {
         // Check if user is authenticated
@@ -155,13 +164,15 @@ export const useWishlistStore = create(
 
         try {
           set({ collectionsLoading: true, collectionsError: null });
-          const collections = await wishlistService.deleteWishlistCollection(collectionId);
-          
+          const collections = await wishlistService.deleteWishlistCollection(
+            collectionId
+          );
+
           // If the deleted collection was active, switch to "all"
           if (get().activeCollection === collectionId) {
             set({ activeCollection: "all" });
           }
-          
+
           set({ collections, collectionsLoading: false });
           toast.success("Collection deleted");
         } catch (error) {
@@ -173,7 +184,7 @@ export const useWishlistStore = create(
           toast.error(error.message || "Failed to delete collection");
         }
       },
-      
+
       // Add product to collection
       addProductToCollection: async (collectionId, productId) => {
         // Check if user is authenticated
@@ -184,19 +195,23 @@ export const useWishlistStore = create(
 
         try {
           set({ collectionsLoading: true, collectionsError: null });
-          const collections = await wishlistService.addProductToCollection(collectionId, productId);
+          const collections = await wishlistService.addProductToCollection(
+            collectionId,
+            productId
+          );
           set({ collections, collectionsLoading: false });
           toast.success("Product added to collection");
         } catch (error) {
           console.error("Failed to add product to collection:", error);
           set({
-            collectionsError: error.message || "Failed to add product to collection",
+            collectionsError:
+              error.message || "Failed to add product to collection",
             collectionsLoading: false,
           });
           toast.error(error.message || "Failed to add product to collection");
         }
       },
-      
+
       // Remove product from collection
       removeProductFromCollection: async (collectionId, productId) => {
         // Check if user is authenticated
@@ -207,21 +222,31 @@ export const useWishlistStore = create(
 
         try {
           set({ collectionsLoading: true, collectionsError: null });
-          const collections = await wishlistService.removeProductFromCollection(collectionId, productId);
+          const collections = await wishlistService.removeProductFromCollection(
+            collectionId,
+            productId
+          );
           set({ collections, collectionsLoading: false });
           toast.success("Product removed from collection");
         } catch (error) {
           console.error("Failed to remove product from collection:", error);
           set({
-            collectionsError: error.message || "Failed to remove product from collection",
+            collectionsError:
+              error.message || "Failed to remove product from collection",
             collectionsLoading: false,
           });
-          toast.error(error.message || "Failed to remove product from collection");
+          toast.error(
+            error.message || "Failed to remove product from collection"
+          );
         }
       },
-      
+
       // Move product between collections
-      moveProductBetweenCollections: async (sourceCollectionId, productId, targetCollectionId) => {
+      moveProductBetweenCollections: async (
+        sourceCollectionId,
+        productId,
+        targetCollectionId
+      ) => {
         // Check if user is authenticated
         if (!isUserLoggedIn()) {
           toast.error("Please log in to manage your wishlist collections");
@@ -230,41 +255,49 @@ export const useWishlistStore = create(
 
         try {
           set({ collectionsLoading: true, collectionsError: null });
-          
+
           // First, get current product details from the source collection
           let productToMove = null;
-          const sourceCollection = get().collections.find(c => c._id === sourceCollectionId);
-          
+          const sourceCollection = get().collections.find(
+            (c) => c._id === sourceCollectionId
+          );
+
           if (sourceCollection) {
-            productToMove = sourceCollection.products.find(p => 
-              (p._id && p._id === productId) || 
-              (typeof p === 'string' && p === productId)
+            productToMove = sourceCollection.products.find(
+              (p) =>
+                (p._id && p._id === productId) ||
+                (typeof p === "string" && p === productId)
             );
           }
-          
+
           if (!productToMove) {
             throw new Error("Product not found in source collection");
           }
-          
+
           // Step 1: Add to target collection
-          await wishlistService.addProductToCollection(targetCollectionId, productId);
-          
-          // Step 2: Remove from source collection
-          const collections = await wishlistService.removeProductFromCollection(
-            sourceCollectionId, 
+          await wishlistService.addProductToCollection(
+            targetCollectionId,
             productId
           );
-          
+
+          // Step 2: Remove from source collection
+          const collections = await wishlistService.removeProductFromCollection(
+            sourceCollectionId,
+            productId
+          );
+
           set({ collections, collectionsLoading: false });
           toast.success("Product moved to new collection");
-          
         } catch (error) {
           console.error("Failed to move product between collections:", error);
           set({
-            collectionsError: error.message || "Failed to move product between collections",
+            collectionsError:
+              error.message || "Failed to move product between collections",
             collectionsLoading: false,
           });
-          toast.error(error.message || "Failed to move product between collections");
+          toast.error(
+            error.message || "Failed to move product between collections"
+          );
         }
       },
 
@@ -286,15 +319,18 @@ export const useWishlistStore = create(
             throw new Error("Invalid product");
           }
 
-          const result = await wishlistService.addToWishlist(productId, collectionId);
-          
+          const result = await wishlistService.addToWishlist(
+            productId,
+            collectionId
+          );
+
           // Update the appropriate state based on where the product was added
           if (collectionId) {
             set({ collections: result, loading: false });
           } else {
             set({ wishlistItems: result, loading: false });
           }
-          
+
           toast.success(`${product.name} added to wishlist`);
           return result;
         } catch (error) {
@@ -310,40 +346,47 @@ export const useWishlistStore = create(
       // Check if a product is in the wishlist
       isInWishlist: (productId) => {
         const { wishlistItems, collections } = get();
-        
+
         // Check main wishlist
-        if (wishlistItems.some(item => 
-          (item._id && item._id === productId) || 
-          (typeof item === 'string' && item === productId)
-        )) {
+        if (
+          wishlistItems.some(
+            (item) =>
+              (item._id && item._id === productId) ||
+              (typeof item === "string" && item === productId)
+          )
+        ) {
           return true;
         }
-        
+
         // Check collections
-        return collections.some(collection => 
-          collection.products.some(item => 
-            (item._id && item._id === productId) || 
-            (typeof item === 'string' && item === productId)
+        return collections.some((collection) =>
+          collection.products.some(
+            (item) =>
+              (item._id && item._id === productId) ||
+              (typeof item === "string" && item === productId)
           )
         );
       },
-      
+
       // Find which collection a product is in (returns collection ID or null if in main wishlist)
       getProductCollectionId: (productId) => {
         const { collections } = get();
-        
+
         for (const collection of collections) {
-          if (collection.products.some(item => 
-            (item._id && item._id === productId) || 
-            (typeof item === 'string' && item === productId)
-          )) {
+          if (
+            collection.products.some(
+              (item) =>
+                (item._id && item._id === productId) ||
+                (typeof item === "string" && item === productId)
+            )
+          ) {
             return collection._id;
           }
         }
-        
+
         return null; // Product is in main wishlist or not found
       },
-      
+
       // Remove from wishlist
       removeFromWishlist: async (productId) => {
         // Check if user is authenticated
@@ -354,16 +397,17 @@ export const useWishlistStore = create(
 
         try {
           set({ loading: true, error: null });
-          
+
           // Check if product is in a collection
           const collectionId = get().getProductCollectionId(productId);
-          
+
           if (collectionId) {
             // Remove from collection
-            const collections = await wishlistService.removeProductFromCollection(
-              collectionId,
-              productId
-            );
+            const collections =
+              await wishlistService.removeProductFromCollection(
+                collectionId,
+                productId
+              );
             set({ collections, loading: false });
           } else {
             // Remove from main wishlist
@@ -372,7 +416,7 @@ export const useWishlistStore = create(
             );
             set({ wishlistItems, loading: false });
           }
-          
+
           toast.success("Item removed from wishlist");
         } catch (error) {
           console.error("Failed to remove from wishlist:", error);
@@ -406,20 +450,21 @@ export const useWishlistStore = create(
           toast.error(error.message || "Failed to clear wishlist");
         }
       },
-      
+
       // Get collection by ID
       getCollectionById: (collectionId) => {
-        return get().collections.find(c => c._id === collectionId);
+        return get().collections.find((c) => c._id === collectionId);
       },
-      
+
       // Check if product is in a specific collection
       isInCollection: (productId, collectionId) => {
         const collection = get().getCollectionById(collectionId);
         if (!collection) return false;
-        
-        return collection.products.some(item => 
-          (item._id && item._id === productId) || 
-          item.toString() === productId
+
+        return collection.products.some(
+          (item) =>
+            (item._id && item._id === productId) ||
+            item.toString() === productId
         );
       },
     }),
