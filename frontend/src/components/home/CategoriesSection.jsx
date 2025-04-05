@@ -1,15 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FiArrowRight } from "react-icons/fi";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-// Register ScrollTrigger
-gsap.registerPlugin(ScrollTrigger);
 
 const CategoriesSection = () => {
-  const sectionRef = useRef(null);
-
   // Categories data
   const categories = [
     {
@@ -41,79 +34,28 @@ const CategoriesSection = () => {
     },
   ];
 
-  // GSAP animations for categories section
-  useEffect(() => {
-    if (sectionRef.current) {
-      // Animate section title and subtitle
-      gsap.fromTo(
-        ".categories-title",
-        { y: 30, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.7,
-          scrollTrigger: {
-            trigger: ".categories-title",
-            start: "top 80%",
-          },
-        }
-      );
-
-      gsap.fromTo(
-        ".categories-subtitle",
-        { y: 20, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.5,
-          delay: 0.2,
-          scrollTrigger: {
-            trigger: ".categories-subtitle",
-            start: "top 80%",
-          },
-        }
-      );
-
-      // Animate category cards with stagger
-      gsap.fromTo(
-        ".category-card",
-        { y: 50, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.7,
-          stagger: 0.15,
-          ease: "power2.out",
-          scrollTrigger: {
-            trigger: ".categories-grid",
-            start: "top 75%",
-          },
-        }
-      );
-    }
-  }, []);
-
   return (
-    <section ref={sectionRef} className="py-16 md:py-24 bg-white">
+    <section className="py-16 md:py-24 bg-white">
       <div className="container mx-auto px-6 md:px-8 lg:px-12">
         {/* Section heading */}
-        <div className="mb-12 text-center">
-          <h2 className="categories-title text-3xl font-bold text-gray-900 md:text-4xl lg:text-5xl">
+        <div className="mb-12 text-center animate-fade-in">
+          <h2 className="text-3xl font-bold text-gray-900 md:text-4xl lg:text-5xl">
             Shop by Category
           </h2>
-          <p className="categories-subtitle mt-4 text-gray-600 mx-auto max-w-2xl">
+          <p className="mt-4 text-gray-600 mx-auto max-w-2xl">
             Explore our wide range of collections designed for every style and
             occasion
           </p>
         </div>
 
         {/* Categories grid */}
-        <div className="categories-grid grid grid-cols-1 gap-8 md:grid-cols-3">
-          {categories.map((category) => (
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+          {categories.map((category, index) => (
             <Link
               key={category.id}
               to={category.link}
-              className="category-card group relative h-96 overflow-hidden rounded-xl shadow-lg transition-all duration-500 hover:shadow-2xl"
+              className="group relative h-96 overflow-hidden rounded-xl shadow-lg transition-all duration-500 hover:shadow-2xl animate-fade-in"
+              style={{ animationDelay: `${index * 0.15}s` }}
             >
               {/* Background image */}
               <div className="absolute inset-0">
