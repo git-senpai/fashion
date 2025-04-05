@@ -253,7 +253,7 @@ export const Navbar = () => {
                           <Link
                             key={collection._id}
                             to={`/wishlist?collection=${collection._id}`}
-                            className="block rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
+                            className="rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center"
                             onClick={() => setWishlistMenuOpen(false)}
                           >
                             <FiFolder className="mr-2 h-4 w-4" /> {collection.name}
@@ -269,7 +269,7 @@ export const Navbar = () => {
                     
                     <Link
                       to="/wishlist"
-                      className="block rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center border-t border-gray-100 mt-1 pt-1 text-primary"
+                      className="rounded-md px-4 py-2 text-sm hover:bg-accent/30 transition-colors duration-150 flex items-center border-t border-gray-100 mt-1 pt-1 text-primary"
                       onClick={() => setWishlistMenuOpen(false)}
                     >
                       <FiPlus className="mr-2 h-4 w-4" /> Create Collection
@@ -431,7 +431,7 @@ export const Navbar = () => {
                           <Link
                             key={collection._id}
                             to={`/wishlist?collection=${collection._id}`}
-                            className="block py-1.5 text-sm hover:text-primary transition-colors duration-150 flex items-center"
+                            className="py-1.5 text-sm hover:text-primary transition-colors duration-150 flex items-center"
                             onClick={() => setMobileMenuOpen(false)}
                           >
                             <FiFolder className="mr-2 h-4 w-4" /> {collection.name}
