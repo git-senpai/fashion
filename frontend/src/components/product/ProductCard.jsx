@@ -20,7 +20,9 @@ const ProductCard = ({ product }) => {
   const [addingToCart, setAddingToCart] = useState(false);
   const [showWishlistModal, setShowWishlistModal] = useState(false);
   const [addingToWishlist, setAddingToWishlist] = useState(false);
+  const [slideDirection, setSlideDirection] = useState("right");
   const intervalRef = useRef(null);
+  const carouselRef = useRef(null);
 
   const { addToCart } = useCartStore();
   const { user, isAuthenticated } = useAuth();
@@ -63,15 +65,16 @@ const ProductCard = ({ product }) => {
     }
   })();
 
-  // Set up auto-scrolling carousel
+  // Update the auto-scrolling carousel effect
   useEffect(() => {
     // Only auto-scroll if we have multiple images and not hovering
     if (productImages.length > 1 && !isHovered) {
       intervalRef.current = setInterval(() => {
+        setSlideDirection("right");
         setCurrentImageIndex((prevIndex) =>
           prevIndex === productImages.length - 1 ? 0 : prevIndex + 1
         );
-      }, 2000); // Change image every 2 seconds
+      }, 3000); // Change image every 3 seconds (slower than before)
     }
 
     return () => {
@@ -86,6 +89,7 @@ const ProductCard = ({ product }) => {
   const goToNextImage = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setSlideDirection("right");
     setCurrentImageIndex((prevIndex) =>
       prevIndex === productImages.length - 1 ? 0 : prevIndex + 1
     );
@@ -94,6 +98,7 @@ const ProductCard = ({ product }) => {
   const goToPrevImage = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setSlideDirection("left");
     setCurrentImageIndex((prevIndex) =>
       prevIndex === 0 ? productImages.length - 1 : prevIndex - 1
     );
@@ -210,6 +215,40 @@ const ProductCard = ({ product }) => {
     }
   };
 
+  // Helper functions for price calculations
+  const calculatePrices = () => {
+    let finalPrice = safeProduct.price || 0;
+    let originalPrice = safeProduct.originalPrice;
+    let discountPercentage = safeProduct.discountPercentage;
+    let calculatedDiscount = 0;
+
+    // If we have original price but no discount percentage, calculate it
+    if (originalPrice && originalPrice > finalPrice && !discountPercentage) {
+      calculatedDiscount = Math.round(
+        ((originalPrice - finalPrice) / originalPrice) * 100
+      );
+      discountPercentage = calculatedDiscount;
+    }
+    // If we have discount but no original price, calculate it
+    else if (!originalPrice && discountPercentage > 0) {
+      originalPrice =
+        Math.round((finalPrice / (1 - discountPercentage / 100)) * 100) / 100;
+    }
+
+    // Calculate savings amount
+    const savingsAmount =
+      originalPrice && discountPercentage > 0 ? originalPrice - finalPrice : 0;
+
+    return {
+      finalPrice,
+      originalPrice,
+      discountPercentage,
+      savingsAmount,
+    };
+  };
+
+  const priceInfo = calculatePrices();
+
   return (
     <>
       <Link
@@ -219,7 +258,10 @@ const ProductCard = ({ product }) => {
         onMouseLeave={() => setIsHovered(false)}
       >
         {/* Product Image Carousel */}
-        <div className="relative h-[200px] w-full overflow-hidden bg-gray-50">
+        <div
+          className="relative h-[320px] w-full overflow-hidden bg-gray-50"
+          ref={carouselRef}
+        >
           {/* Carousel Navigation (only visible when multiple images and hovering) */}
           {productImages.length > 1 && (
             <>
@@ -260,29 +302,40 @@ const ProductCard = ({ product }) => {
             </>
           )}
 
-          {/* Current Image */}
-          <motion.img
-            src={productImages[currentImageIndex]}
-            alt={safeProduct.name}
-            className="h-full w-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src =
-                "https://placehold.co/600x400?text=Image+Not+Found";
-            }}
-            key={currentImageIndex} // Add key to force re-render when changing images
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
-          />
+          {/* Current Image with Smooth Transitions */}
+          <div className="relative h-full w-full overflow-hidden">
+            <motion.div
+              className="absolute h-full w-full"
+              initial={{ x: slideDirection === "right" ? "100%" : "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: slideDirection === "right" ? "-100%" : "100%" }}
+              transition={{
+                type: "tween",
+                duration: 0.4,
+                ease: "easeInOut",
+              }}
+              key={currentImageIndex}
+            >
+              <img
+                src={productImages[currentImageIndex]}
+                alt={safeProduct.name}
+                className="h-full w-full object-cover object-center"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src =
+                    "https://placehold.co/600x400?text=Image+Not+Found";
+                }}
+              />
+            </motion.div>
+          </div>
 
           {/* Hover Overlay with Gradient */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
 
-          {/* Discount Tag */}
-          {safeProduct.discountPercentage > 0 && (
-            <div className="absolute left-3 top-3 rounded-full bg-green-500 px-2 py-1 text-xs font-semibold text-white shadow-sm">
-              {safeProduct.discountPercentage}% OFF
+          {/* Discount Tag - More prominent */}
+          {priceInfo.discountPercentage > 0 && (
+            <div className="absolute left-3 top-3 rounded-md bg-red-600 px-2 py-1 text-xs font-bold text-white shadow-md">
+              -{priceInfo.discountPercentage}%
             </div>
           )}
 
@@ -384,17 +437,38 @@ const ProductCard = ({ product }) => {
             )}
           </div>
 
-          {/* Price */}
-          <div className="mt-auto flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-900">
-              ${safeProduct.price.toFixed(2)}
-            </span>
-            {safeProduct.originalPrice &&
-              safeProduct.originalPrice > safeProduct.price && (
+          {/* Price Section - Enhanced with clear discount visualization */}
+          <div className="mt-auto space-y-1">
+            {/* Price Display with Original Price */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Discounted price (current price) */}
+              <span className="text-base font-bold text-primary">
+                ${priceInfo.finalPrice.toFixed(2)}
+              </span>
+
+              {/* Original price with strikethrough */}
+              {priceInfo.discountPercentage > 0 && priceInfo.originalPrice && (
                 <span className="text-xs text-gray-500 line-through">
-                  ${safeProduct.originalPrice.toFixed(2)}
+                  ${priceInfo.originalPrice.toFixed(2)}
                 </span>
               )}
+
+              {/* Savings amount when there's a discount */}
+              {priceInfo.savingsAmount > 0 && (
+                <span className="ml-auto text-xs text-green-600 font-medium">
+                  Save ${priceInfo.savingsAmount.toFixed(2)}
+                </span>
+              )}
+            </div>
+
+            {/* Show discount percentage as text when applicable */}
+            {priceInfo.discountPercentage > 0 && (
+              <div className="flex items-center">
+                <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-sm font-medium">
+                  {priceInfo.discountPercentage}% OFF
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </Link>
