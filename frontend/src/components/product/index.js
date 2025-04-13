@@ -9,3 +9,4 @@ export { default as RelatedProducts } from "./RelatedProducts";
 export { default as Breadcrumbs } from "./Breadcrumbs";
 export { default as WishlistModal } from "./WishlistModal";
 export { default as ProductCard } from "./ProductCard";
+export { default as UserLikedProducts } from "./UserLikedProducts";

@@ -1,4 +1,4 @@
-import { FiStar } from "react-icons/fi";
+import { FiStar, FiPackage, FiCheck } from "react-icons/fi";
 
 // Helper functions for price calculations
 const calculateOriginalPrice = (price, discount) => {
@@ -21,6 +21,7 @@ const ProductInfo = ({ product }) => {
 
   const {
     name,
+    brand,
     rating = 0,
     numReviews = 0,
     price = 0,
@@ -30,10 +31,22 @@ const ProductInfo = ({ product }) => {
 
   return (
     <div>
-      <h1 className="mb-2 text-3xl font-bold">{name}</h1>
+      {/* Brand (if available) */}
+      {brand && (
+        <div className="mb-2">
+          <span className="text-sm font-medium uppercase tracking-wider text-gray-500">
+            {brand}
+          </span>
+        </div>
+      )}
+
+      {/* Product Name */}
+      <h1 className="mb-3 text-2xl font-bold text-gray-800 sm:text-3xl">
+        {name}
+      </h1>
 
       {/* Rating */}
-      <div className="mb-4 flex items-center">
+      <div className="mb-5 flex items-center">
         <div className="flex items-center">
           {Array(5)
             .fill()
@@ -48,39 +61,48 @@ const ProductInfo = ({ product }) => {
               />
             ))}
         </div>
-        <span className="ml-2 text-sm text-muted-foreground">
-          {rating.toFixed(1)} ({numReviews} reviews)
+        <span className="ml-2 text-sm text-gray-500">
+          {rating.toFixed(1)} • {numReviews}{" "}
+          {numReviews === 1 ? "review" : "reviews"}
         </span>
       </div>
 
       {/* Price */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2">
+      <div className="mb-6 rounded-lg bg-gray-50 p-4">
+        <div className="flex flex-wrap items-center gap-2">
           {discountPercentage > 0 ? (
             <>
-              <span className="text-2xl font-bold text-[#e84a7f]">
+              <span className="text-2xl font-bold text-primary">
                 ${price.toFixed(2)}
               </span>
-              <span className="text-lg text-muted-foreground line-through">
+              <span className="text-lg text-gray-400 line-through">
                 ${calculateOriginalPrice(price, discountPercentage).toFixed(2)}
               </span>
-              <span className="rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+              <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
                 {discountPercentage}% OFF
               </span>
             </>
           ) : (
-            <span className="text-2xl font-bold">${price.toFixed(2)}</span>
+            <span className="text-2xl font-bold text-gray-800">
+              ${price.toFixed(2)}
+            </span>
           )}
         </div>
         {discountPercentage > 0 && (
-          <div className="mt-1 text-sm text-green-600">
-            You save: ${calculateSavings(price, discountPercentage).toFixed(2)}
+          <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
+            <FiCheck className="h-4 w-4" />
+            <span>
+              You save ${calculateSavings(price, discountPercentage).toFixed(2)}
+            </span>
           </div>
         )}
       </div>
 
       {/* Stock Status */}
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-2">
+        <FiPackage
+          className={countInStock > 0 ? "text-green-500" : "text-red-500"}
+        />
         <span
           className={`text-sm font-medium ${
             countInStock > 0 ? "text-green-600" : "text-red-600"

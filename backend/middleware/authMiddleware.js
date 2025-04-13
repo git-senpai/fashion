@@ -20,15 +20,23 @@ const protect = asyncHandler(async (req, res, next) => {
       // Get user from the token
       req.user = await User.findById(decoded.id).select("-password");
 
+      if (!req.user) {
+        console.error(`User not found for id: ${decoded.id}`);
+        res.status(401);
+        throw new Error("Not authorized, user not found");
+      }
+
       next();
     } catch (error) {
-      console.error(error);
+      console.error("Token verification error:", error);
       res.status(401);
       throw new Error("Not authorized, token failed");
     }
-  }
-
-  if (!token) {
+  } else {
+    console.error(
+      "No bearer token in authorization header:",
+      req.headers.authorization
+    );
     res.status(401);
     throw new Error("Not authorized, no token");
   }
@@ -36,9 +44,15 @@ const protect = asyncHandler(async (req, res, next) => {
 
 // Admin middleware
 const admin = (req, res, next) => {
-  if (req.user && req.user.isAdmin) {
+  if (req.user && req.user.isAdmin === true) {
+    console.log(`Admin access granted to: ${req.user.name} (${req.user._id})`);
     next();
   } else {
+    console.error("Admin access denied:", {
+      userId: req.user ? req.user._id : "No user",
+      name: req.user ? req.user.name : "No user",
+      isAdmin: req.user ? req.user.isAdmin : false,
+    });
     res.status(401);
     throw new Error("Not authorized as an admin");
   }

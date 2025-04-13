@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const User = require("../models/userModel");
 const Product = require("../models/productModel");
+const Order = require("../models/orderModel");
 const generateToken = require("../utils/generateToken");
 
 // @desc    Auth user & get token
@@ -12,14 +13,22 @@ const authUser = asyncHandler(async (req, res) => {
   const user = await User.findOne({ email });
 
   if (user && (await user.matchPassword(password))) {
+    // Ensure isAdmin is a boolean value
+    const isAdmin = user.isAdmin === true;
+
+    console.log(
+      `User login successful: ${user.name} (${user.email}), isAdmin: ${isAdmin}`
+    );
+
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
-      isAdmin: user.isAdmin,
+      isAdmin: isAdmin,
       token: generateToken(user._id),
     });
   } else {
+    console.log(`Login failed for email: ${email}`);
     res.status(401);
     throw new Error("Invalid email or password");
   }
@@ -244,6 +253,118 @@ const removeFromWishlist = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get user statistics
+// @route   GET /api/users/stats
+// @access  Private/Admin
+const getUserStats = asyncHandler(async (req, res) => {
+  try {
+    console.log("Getting user statistics, requested by admin:", req.user.name);
+
+    // Get all users with populated cart and wishlist
+    const users = await User.find({})
+      .select("-password")
+      .populate("wishlist", "name price image")
+      .populate({
+        path: "cart.product",
+        select: "name price image",
+      });
+
+    console.log(`Found ${users.length} users for stats collection`);
+
+    // Get all orders
+    const orders = await Order.find({});
+    console.log(`Found ${orders.length} orders for stats collection`);
+
+    // Process user statistics
+    const userStats = await Promise.all(
+      users.map(async (user) => {
+        try {
+          // Count wishlist items
+          const wishlistCount = user.wishlist ? user.wishlist.length : 0;
+
+          // Count cart items
+          const cartCount = user.cart ? user.cart.length : 0;
+
+          // Calculate cart value
+          const cartValue = user.cart.reduce((sum, item) => {
+            const price = item.product ? item.product.price || 0 : 0;
+            return sum + price * item.quantity;
+          }, 0);
+
+          // Filter orders for this user
+          const userOrders = orders.filter(
+            (order) =>
+              order.user && order.user.toString() === user._id.toString()
+          );
+
+          // Count total orders
+          const orderCount = userOrders.length;
+
+          // Calculate total spent
+          const totalSpent = userOrders.reduce(
+            (sum, order) => sum + (order.totalPrice || 0),
+            0
+          );
+
+          // Count completed orders
+          const completedOrders = userOrders.filter(
+            (order) => order.isDelivered
+          ).length;
+
+          // Calculate average order value
+          const avgOrderValue = orderCount > 0 ? totalSpent / orderCount : 0;
+
+          // Calculate days since registration
+          const daysSinceRegistration = Math.floor(
+            (new Date() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24)
+          );
+
+          return {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            isAdmin: user.isAdmin === true,
+            createdAt: user.createdAt,
+            wishlistCount,
+            cartCount,
+            cartValue,
+            orderCount,
+            totalSpent,
+            completedOrders,
+            avgOrderValue,
+            daysSinceRegistration,
+          };
+        } catch (err) {
+          console.error(`Error processing stats for user ${user._id}:`, err);
+          // Return basic user data with empty stats on error
+          return {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            isAdmin: user.isAdmin === true,
+            createdAt: user.createdAt,
+            wishlistCount: 0,
+            cartCount: 0,
+            cartValue: 0,
+            orderCount: 0,
+            totalSpent: 0,
+            completedOrders: 0,
+            avgOrderValue: 0,
+            daysSinceRegistration: 0,
+          };
+        }
+      })
+    );
+
+    console.log(`Successfully processed stats for ${userStats.length} users`);
+    res.json(userStats);
+  } catch (error) {
+    console.error("Error in getUserStats:", error);
+    res.status(500);
+    throw new Error(`Failed to get user statistics: ${error.message}`);
+  }
+});
+
 module.exports = {
   authUser,
   registerUser,
@@ -256,4 +377,5 @@ module.exports = {
   getWishlist,
   addToWishlist,
   removeFromWishlist,
+  getUserStats,
 };

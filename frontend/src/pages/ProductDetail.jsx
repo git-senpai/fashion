@@ -17,6 +17,7 @@ import {
   RelatedProducts,
   Breadcrumbs,
   WishlistModal,
+  UserLikedProducts,
 } from "../components/product";
 
 const ProductDetail = () => {
@@ -216,58 +217,71 @@ const ProductDetail = () => {
   })();
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Breadcrumbs */}
-      <Breadcrumbs product={product} />
+    <div className="min-h-screen bg-gray-50 py-8 sm:py-12">
+      <div className="container mx-auto px-4">
+        {/* Breadcrumbs */}
+        <Breadcrumbs product={product} />
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-        {/* Product Gallery */}
-        <ProductGallery images={productImages} productName={product.name} />
+        <div className="mt-6 rounded-xl bg-white p-5 shadow-sm sm:p-8">
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
+            {/* Product Gallery */}
+            <ProductGallery images={productImages} productName={product.name} />
 
-        {/* Product Info */}
-        <div>
-          {/* Basic Info */}
-          <ProductInfo product={product} />
+            {/* Product Info */}
+            <div>
+              {/* Basic Info */}
+              <ProductInfo product={product} />
 
-          {/* Size Selector */}
-          <ProductSizeSelector
-            sizeQuantities={product.sizeQuantities}
-            selectedSize={selectedSize}
-            onSelectSize={setSelectedSize}
-          />
+              {/* Size Selector */}
+              <ProductSizeSelector
+                sizeQuantities={product.sizeQuantities}
+                selectedSize={selectedSize}
+                onSelectSize={setSelectedSize}
+              />
 
-          {/* Add to Cart & Wishlist */}
-          <ProductActions
-            product={product}
-            selectedSize={selectedSize}
-            productInWishlist={productInWishlist}
-            onToggleWishlist={handleWishlistToggle}
-            isAuthenticated={isAuthenticated}
-          />
+              {/* Add to Cart & Wishlist */}
+              <ProductActions
+                product={product}
+                selectedSize={selectedSize}
+                productInWishlist={productInWishlist}
+                onToggleWishlist={handleWishlistToggle}
+                isAuthenticated={isAuthenticated}
+              />
+            </div>
+          </div>
+        </div>
 
-          {/* Product Tabs (Description, Specifications, Reviews) */}
+        {/* Product Tabs (Description, Specifications, Reviews) */}
+        <div className="mt-8 rounded-xl bg-white p-5 shadow-sm sm:p-8">
           <ProductTabs
             product={product}
-            user={user}
-            isAuthenticated={isAuthenticated}
             onReviewSubmitted={handleReviewSubmitted}
+            isAuthenticated={isAuthenticated}
           />
         </div>
+
+        {/* Similar Products - From the same category */}
+        <RelatedProducts
+          currentProductId={product._id}
+          categoryId={product.category}
+        />
+
+        {/* Products You've Liked */}
+        <UserLikedProducts currentProductId={product._id} />
       </div>
 
-      {/* Related Products Section */}
-      <RelatedProducts productId={product._id} category={product.category} />
-
-      {/* Wishlist Collection Modal */}
-      <WishlistModal
-        isOpen={showWishlistModal}
-        onClose={() => setShowWishlistModal(false)}
-        collections={collections || []}
-        onAddToMainWishlist={addToMainWishlist}
-        onAddToCollection={addToCollection}
-        onCreateCollection={handleCreateCollection}
-        productName={product.name}
-      />
+      {/* Wishlist Modal */}
+      {showWishlistModal && (
+        <WishlistModal
+          isOpen={showWishlistModal}
+          onClose={() => setShowWishlistModal(false)}
+          collections={collections || []}
+          onAddToDefault={addToMainWishlist}
+          onAddToCollection={addToCollection}
+          onCreateCollection={handleCreateCollection}
+          product={product}
+        />
+      )}
     </div>
   );
 };

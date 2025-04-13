@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { FiChevronRight } from "react-icons/fi";
+import { FiChevronRight, FiHome } from "react-icons/fi";
 
 const Breadcrumbs = ({ product }) => {
   if (!product) return null;
@@ -7,28 +7,56 @@ const Breadcrumbs = ({ product }) => {
   const { category, name } = product;
 
   return (
-    <div className="mb-6 flex items-center text-sm text-muted-foreground">
-      <Link to="/" className="hover:text-primary">
-        Home
-      </Link>
-      <FiChevronRight className="mx-2 h-4 w-4" />
-      <Link to="/products" className="hover:text-primary">
-        Products
-      </Link>
-      {category && (
-        <>
-          <FiChevronRight className="mx-2 h-4 w-4" />
+    <nav aria-label="Breadcrumb">
+      <ol className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+        <li>
           <Link
-            to={`/products?category=${encodeURIComponent(category)}`}
-            className="hover:text-primary"
+            to="/"
+            className="flex items-center gap-1 hover:text-primary"
+            aria-label="Home"
           >
-            {category}
+            <FiHome className="h-3.5 w-3.5" />
+            <span className="sr-only sm:not-sr-only">Home</span>
           </Link>
-        </>
-      )}
-      <FiChevronRight className="mx-2 h-4 w-4" />
-      <span className="text-foreground">{name}</span>
-    </div>
+        </li>
+
+        <li className="flex items-center">
+          <FiChevronRight className="h-3.5 w-3.5 text-gray-400" />
+        </li>
+
+        <li>
+          <Link to="/products" className="hover:text-primary">
+            Products
+          </Link>
+        </li>
+
+        {category && (
+          <>
+            <li className="flex items-center">
+              <FiChevronRight className="h-3.5 w-3.5 text-gray-400" />
+            </li>
+            <li>
+              <Link
+                to={`/products?category=${encodeURIComponent(category)}`}
+                className="hover:text-primary"
+              >
+                {category}
+              </Link>
+            </li>
+          </>
+        )}
+
+        <li className="flex items-center">
+          <FiChevronRight className="h-3.5 w-3.5 text-gray-400" />
+        </li>
+
+        <li>
+          <span className="max-w-[200px] truncate font-medium text-gray-800 sm:max-w-xs">
+            {name}
+          </span>
+        </li>
+      </ol>
+    </nav>
   );
 };
 

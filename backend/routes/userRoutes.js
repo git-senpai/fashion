@@ -12,6 +12,7 @@ const {
   getWishlist,
   addToWishlist,
   removeFromWishlist,
+  getUserStats,
 } = require("../controllers/userController");
 const { protect, admin } = require("../middleware/authMiddleware");
 
@@ -35,6 +36,7 @@ router.route("/wishlist/:id").delete(protect, removeFromWishlist);
 
 // Admin routes
 router.route("/").get(protect, admin, getUsers);
+router.route("/stats").get(protect, admin, getUserStats);
 
 router
   .route("/:id")
