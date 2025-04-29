@@ -15,7 +15,12 @@ const addressRoutes = require("./routes/addressRoutes");
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");
 
 // Load environment variables
-dotenv.config();
+try {
+  dotenv.config();
+  console.log("Environment variables loaded successfully");
+} catch (error) {
+  console.error("Error loading environment variables:", error);
+}
 
 const app = express();
 
@@ -29,15 +34,32 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Error handling middleware for uncaught exceptions
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+});
+
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled Rejection:", error);
+});
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, "uploads");
 if (!require("fs").existsSync(uploadsDir)) {
-  require("fs").mkdirSync(uploadsDir, { recursive: true });
+  try {
+    require("fs").mkdirSync(uploadsDir, { recursive: true });
+    console.log("Uploads directory created successfully");
+  } catch (error) {
+    console.error("Error creating uploads directory:", error);
+  }
 }
 
 // Connect to MongoDB with retry logic
 const connectWithRetry = async () => {
   try {
+    if (!process.env.MONGO_URI) {
+      throw new Error("MONGO_URI is not defined in environment variables");
+    }
     await connectDB();
     console.log("MongoDB connected successfully");
   } catch (error) {
@@ -47,6 +69,7 @@ const connectWithRetry = async () => {
   }
 };
 
+// Initialize MongoDB connection
 connectWithRetry();
 
 // Routes
@@ -62,12 +85,19 @@ app.use("/api/addresses", addressRoutes);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({
+    status: "ok",
+    environment: process.env.NODE_ENV,
+    mongoUri: process.env.MONGO_URI ? "configured" : "not configured",
+  });
 });
 
 // Default route
 app.get("/", (req, res) => {
-  res.json({ message: "API is running..." });
+  res.json({
+    message: "API is running...",
+    environment: process.env.NODE_ENV,
+  });
 });
 
 // Error Middleware
