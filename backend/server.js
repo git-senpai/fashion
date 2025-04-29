@@ -16,14 +16,17 @@ const { errorHandler, notFound } = require("./middleware/errorMiddleware");
 // Load environment variables
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Connect to MongoDB
+connectDB().catch((err) => {
+  console.error("Failed to connect to MongoDB:", err);
+  process.exit(1);
+});
 
 // Routes
 app.use("/api/products", productRoutes);
@@ -47,6 +50,15 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+
+// Only start the server if not in a serverless environment
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(
+      `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
+    );
+  });
+}
+
+// Export the Express API
+module.exports = app;
