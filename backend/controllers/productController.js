@@ -83,14 +83,20 @@ const createProduct = asyncHandler(async (req, res) => {
 
   // Calculate total countInStock from sizeQuantities
   const countInStock = Array.isArray(sizeQuantities)
-    ? sizeQuantities.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+    ? sizeQuantities.reduce(
+        (sum, item) => sum + (Number(item.quantity) || 0),
+        0
+      )
     : 0;
 
   // Ensure discountPercentage is properly parsed as a number
-  const parsedDiscountPercentage = discountPercentage !== undefined ? 
-    Number(discountPercentage) : 0;
+  const parsedDiscountPercentage =
+    discountPercentage !== undefined ? Number(discountPercentage) : 0;
 
-  console.log('Creating product with discount percentage:', parsedDiscountPercentage);
+  console.log(
+    "Creating product with discount percentage:",
+    parsedDiscountPercentage
+  );
 
   const product = new Product({
     name,
@@ -133,7 +139,10 @@ const updateProduct = asyncHandler(async (req, res) => {
   if (product) {
     // Calculate total stock from sizeQuantities
     const calculatedCountInStock = Array.isArray(sizeQuantities)
-      ? sizeQuantities.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+      ? sizeQuantities.reduce(
+          (sum, item) => sum + (Number(item.quantity) || 0),
+          0
+        )
       : countInStock || product.countInStock;
 
     product.name = name || product.name;
@@ -144,7 +153,10 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.category = category || product.category;
     product.countInStock = calculatedCountInStock;
     product.sizeQuantities = sizeQuantities || product.sizeQuantities;
-    product.discountPercentage = discountPercentage !== undefined ? discountPercentage : product.discountPercentage;
+    product.discountPercentage =
+      discountPercentage !== undefined
+        ? discountPercentage
+        : product.discountPercentage;
     product.featured = featured !== undefined ? featured : product.featured;
 
     const updatedProduct = await product.save();
@@ -171,16 +183,16 @@ const createProductReview = asyncHandler(async (req, res) => {
           const result = await cloudinary.uploader.upload(file.path, {
             folder: "fashion_ecommerce/reviews",
             width: 1200,
-            crop: "limit"
+            crop: "limit",
           });
-  
+
           uploadedImageUrls.push(result.secure_url);
-  
+
           // Clean up local file after successful upload
           fs.unlinkSync(file.path);
         } catch (uploadErr) {
           console.error("Error uploading image to Cloudinary:", uploadErr);
-          
+
           // Clean up local file if upload failed
           if (fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
@@ -188,35 +200,35 @@ const createProductReview = asyncHandler(async (req, res) => {
         }
       }
     }
-  
+
     const product = await Product.findById(req.params.id);
-  
+
     if (product) {
       const alreadyReviewed = product.reviews.find(
         (r) => r.user.toString() === req.user._id.toString()
       );
-  
+
       if (alreadyReviewed) {
         res.status(400);
         throw new Error("Product already reviewed");
       }
-  
+
       const review = {
         name: req.user.name,
         rating: Number(rating),
         comment,
         user: req.user._id,
-        images: uploadedImageUrls
+        images: uploadedImageUrls,
       };
-  
+
       product.reviews.push(review);
-  
+
       product.numReviews = product.reviews.length;
-  
+
       product.rating =
         product.reviews.reduce((acc, item) => item.rating + acc, 0) /
         product.reviews.length;
-  
+
       await product.save();
       res.status(201).json({ message: "Review added" });
     } else {

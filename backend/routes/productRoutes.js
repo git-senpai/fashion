@@ -29,7 +29,9 @@ const storage = multer.diskStorage({
   filename: function (req, file, cb) {
     cb(
       null,
-      `review-${Date.now()}-${Math.round(Math.random() * 1000)}${path.extname(file.originalname)}`
+      `review-${Date.now()}-${Math.round(Math.random() * 1000)}${path.extname(
+        file.originalname
+      )}`
     );
   },
 });
@@ -52,7 +54,7 @@ const upload = multer({
 // Middleware to handle multer errors for review images
 const uploadReviewImages = (req, res, next) => {
   const uploadMultiple = upload.array("images", 5); // Allow up to 5 images
-  
+
   uploadMultiple(req, res, function (err) {
     if (err instanceof multer.MulterError) {
       // A Multer error occurred when uploading
@@ -82,6 +84,8 @@ router
   .delete(protect, admin, deleteProduct)
   .put(protect, admin, updateProduct);
 
-router.route("/:id/reviews").post(protect, uploadReviewImages, createProductReview);
+router
+  .route("/:id/reviews")
+  .post(protect, uploadReviewImages, createProductReview);
 
 module.exports = router;
