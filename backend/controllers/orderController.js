@@ -35,32 +35,36 @@ const addOrderItems = asyncHandler(async (req, res) => {
     // Update product inventory based on ordered items
     for (const item of orderItems) {
       const product = await Product.findById(item.product);
-      
+
       if (!product) {
         res.status(404);
         throw new Error(`Product not found: ${item.product}`);
       }
-      
+
       // If product has size, update specific size inventory
       if (item.size) {
         const sizeIndex = product.sizeQuantities.findIndex(
-          sq => sq.size === item.size
+          (sq) => sq.size === item.size
         );
-        
+
         if (sizeIndex === -1) {
           res.status(400);
-          throw new Error(`Size ${item.size} not found for product ${product.name}`);
+          throw new Error(
+            `Size ${item.size} not found for product ${product.name}`
+          );
         }
-        
+
         // Check if enough quantity available
         if (product.sizeQuantities[sizeIndex].quantity < item.qty) {
           res.status(400);
-          throw new Error(`Not enough stock for ${product.name} in size ${item.size}`);
+          throw new Error(
+            `Not enough stock for ${product.name} in size ${item.size}`
+          );
         }
-        
+
         // Update size inventory
         product.sizeQuantities[sizeIndex].quantity -= item.qty;
-        
+
         // Also update total inventory
         product.countInStock -= item.qty;
       } else {
@@ -69,10 +73,10 @@ const addOrderItems = asyncHandler(async (req, res) => {
           res.status(400);
           throw new Error(`Not enough stock for ${product.name}`);
         }
-        
+
         product.countInStock -= item.qty;
       }
-      
+
       await product.save();
     }
 
