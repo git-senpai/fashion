@@ -33,7 +33,7 @@ const Login = () => {
       navigate(redirect);
     } catch (error) {
       console.error("Login failed:", error);
-    } 
+    }
   };
 
   return (

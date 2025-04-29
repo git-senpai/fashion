@@ -207,7 +207,8 @@ const Cart = () => {
                           </Link>
                           {item.size && (
                             <div className="text-xs text-gray-500 mt-1">
-                              Size: <span className="font-medium">{item.size}</span>
+                              Size:{" "}
+                              <span className="font-medium">{item.size}</span>
                             </div>
                           )}
                         </div>
@@ -222,7 +223,11 @@ const Cart = () => {
                       <div className="flex items-center">
                         <button
                           onClick={() =>
-                            handleQuantityChange(item._id, item.quantity - 1, item.size)
+                            handleQuantityChange(
+                              item._id,
+                              item.quantity - 1,
+                              item.size
+                            )
                           }
                           disabled={
                             item.quantity <= 1 || loadingAction || loading
@@ -236,7 +241,11 @@ const Cart = () => {
                         </span>
                         <button
                           onClick={() =>
-                            handleQuantityChange(item._id, item.quantity + 1, item.size)
+                            handleQuantityChange(
+                              item._id,
+                              item.quantity + 1,
+                              item.size
+                            )
                           }
                           disabled={
                             item.quantity >= item.countInStock ||
@@ -256,7 +265,9 @@ const Cart = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleRemoveFromCart(item._id, item.size)}
+                        onClick={() =>
+                          handleRemoveFromCart(item._id, item.size)
+                        }
                         disabled={loadingAction || loading}
                         className="text-red-500 hover:text-red-700 disabled:opacity-50"
                       >

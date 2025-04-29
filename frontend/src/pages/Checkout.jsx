@@ -67,9 +67,9 @@ const Checkout = () => {
           setLoadingAddresses(true);
           const addresses = await getAddresses();
           setSavedAddresses(addresses);
-          
+
           // Set default address if available
-          const defaultAddress = addresses.find(addr => addr.isDefault);
+          const defaultAddress = addresses.find((addr) => addr.isDefault);
           if (defaultAddress) {
             setSelectedAddressId(defaultAddress._id);
             fillAddressForm(defaultAddress);
@@ -81,15 +81,15 @@ const Checkout = () => {
         }
       }
     };
-    
+
     fetchAddresses();
   }, [isAuthenticated]);
 
   const fillAddressForm = (address) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      firstName: user?.name?.split(' ')[0] || "",
-      lastName: user?.name?.split(' ').slice(1).join(' ') || "",
+      firstName: user?.name?.split(" ")[0] || "",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || "",
       email: user?.email || "",
       phone: address.phone || "",
       address: address.streetAddress || "",
@@ -103,9 +103,11 @@ const Checkout = () => {
   const handleAddressSelect = (e) => {
     const addressId = e.target.value;
     setSelectedAddressId(addressId);
-    
+
     if (addressId) {
-      const selectedAddress = savedAddresses.find(addr => addr._id === addressId);
+      const selectedAddress = savedAddresses.find(
+        (addr) => addr._id === addressId
+      );
       if (selectedAddress) {
         fillAddressForm(selectedAddress);
       }
@@ -388,7 +390,8 @@ const Checkout = () => {
                             <option value="">-- Select an address --</option>
                             {savedAddresses.map((address) => (
                               <option key={address._id} value={address._id}>
-                                {address.name} ({address.streetAddress}, {address.city})
+                                {address.name} ({address.streetAddress},{" "}
+                                {address.city})
                                 {address.isDefault ? " (Default)" : ""}
                               </option>
                             ))}
@@ -397,9 +400,9 @@ const Checkout = () => {
                             <FiChevronRight className="h-5 w-5 transform rotate-90 text-muted-foreground" />
                           </div>
                         </div>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
+                        <Button
+                          type="button"
+                          variant="outline"
                           size="sm"
                           onClick={() => navigate("/dashboard/address")}
                         >
