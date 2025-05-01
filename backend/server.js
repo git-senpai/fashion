@@ -104,15 +104,15 @@ app.get("/", (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server only in development
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(
-      `Server running in ${process.env.NODE_ENV} mode on port ${PORT}`
-    );
-  });
-}
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(
+    `Server running in ${
+      process.env.NODE_ENV || "development"
+    } mode on port ${PORT}`
+  );
+});
 
 // Export the Express API
 module.exports = app;
