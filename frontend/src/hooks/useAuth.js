@@ -13,13 +13,12 @@ const useAuthStore = create(
       error: null,
 
       // Login user
-      login: async (email, password, name) => {
+      login: async (email, password) => {
         try {
           set({ loading: true, error: null });
           const { data } = await axios.post("/api/users/login", {
             email,
             password,
-            name,
           });
 
           // Make sure isAdmin is properly set

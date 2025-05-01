@@ -28,8 +28,7 @@ const Login = () => {
 
   const onSubmit = async (data) => {
     try {
-      const name = data.email.split("@")[0];
-      await login(data.email, data.password, name);
+      await login(data.email, data.password);
       navigate(redirect);
     } catch (error) {
       console.error("Login failed:", error);
