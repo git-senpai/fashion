@@ -1,16 +1,20 @@
-import axios from "axios";
+import axios from "../config/api";
 
 // Function to get all products
-export const getProducts = async (keyword = "", pageNumber = "", category = "") => {
+export const getProducts = async (
+  keyword = "",
+  pageNumber = "",
+  category = ""
+) => {
   try {
     const queryParams = new URLSearchParams();
     if (keyword) queryParams.append("keyword", keyword);
     if (pageNumber) queryParams.append("pageNumber", pageNumber);
     if (category) queryParams.append("category", category);
-    
+
     const queryString = queryParams.toString();
-    const url = `/api/products${queryString ? `?${queryString}` : ''}`;
-    
+    const url = `/api/products${queryString ? `?${queryString}` : ""}`;
+
     console.log(`Calling API: ${url}`);
     const { data } = await axios.get(url);
 
@@ -157,13 +161,13 @@ export const createProductReview = async (productId, reviewData, token) => {
   try {
     // Check if reviewData is FormData (contains images) or just JSON data
     const isFormData = reviewData instanceof FormData;
-    
+
     const config = {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     };
-    
+
     // If not FormData, set Content-Type to application/json
     if (!isFormData) {
       config.headers["Content-Type"] = "application/json";
