@@ -28,9 +28,15 @@ const importData = async () => {
     await Product.insertMany(sampleProducts);
 
     console.log("Data Imported!");
+    console.log("Test users created:");
+    for (const user of users) {
+      console.log(
+        `- Email: ${user.email}, Password: 123456, Admin: ${user.isAdmin}`
+      );
+    }
     process.exit();
   } catch (error) {
-    console.error(`${error}`);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 };
@@ -44,7 +50,7 @@ const destroyData = async () => {
     console.log("Data Destroyed!");
     process.exit();
   } catch (error) {
-    console.error(`${error}`);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 };

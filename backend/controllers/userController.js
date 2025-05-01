@@ -10,9 +10,25 @@ const generateToken = require("../utils/generateToken");
 const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
+  console.log(`Login attempt for email: ${email}`);
 
-  if (user && (await user.matchPassword(password))) {
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      console.log(`Login failed - User not found with email: ${email}`);
+      res.status(401);
+      throw new Error("Invalid email or password");
+    }
+
+    const passwordMatch = await user.matchPassword(password);
+
+    if (!passwordMatch) {
+      console.log(`Login failed - Invalid password for email: ${email}`);
+      res.status(401);
+      throw new Error("Invalid email or password");
+    }
+
     // Ensure isAdmin is a boolean value
     const isAdmin = user.isAdmin === true;
 
@@ -20,17 +36,23 @@ const authUser = asyncHandler(async (req, res) => {
       `User login successful: ${user.name} (${user.email}), isAdmin: ${isAdmin}`
     );
 
+    const token = generateToken(user._id);
+    console.log("Generated token length:", token.length);
+
     res.json({
       _id: user._id,
       name: user.name,
       email: user.email,
       isAdmin: isAdmin,
-      token: generateToken(user._id),
+      token: token,
     });
-  } else {
-    console.log(`Login failed for email: ${email}`);
-    res.status(401);
-    throw new Error("Invalid email or password");
+  } catch (error) {
+    console.error(`Login error for ${email}:`, error);
+    if (!res.headersSent) {
+      res.status(401);
+      throw new Error("Invalid email or password");
+    }
+    throw error;
   }
 });
 

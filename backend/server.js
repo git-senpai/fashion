@@ -13,6 +13,8 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const sizeRoutes = require("./routes/sizeRoutes");
 const addressRoutes = require("./routes/addressRoutes");
 const { errorHandler, notFound } = require("./middleware/errorMiddleware");
+const User = require("./models/userModel");
+const jwt = require("jsonwebtoken");
 
 // Load environment variables
 try {
@@ -106,7 +108,52 @@ app.get("/health", (req, res) => {
     status: "ok",
     environment: process.env.NODE_ENV,
     mongoUri: process.env.MONGO_URI ? "configured" : "not configured",
+    jwtSecret: process.env.JWT_SECRET ? "configured" : "not configured",
   });
+});
+
+// Test auth endpoint with hardcoded credentials
+app.post("/api/test-auth", async (req, res) => {
+  try {
+    const email = "admin@example.com";
+    const password = "123456";
+
+    console.log("Testing auth with:", { email, password });
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      console.log("Test auth failed - user not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      console.log("Test auth failed - password doesn't match");
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    // Use the same fallback secret as in other files
+    const secret =
+      process.env.JWT_SECRET || "fallback_secret_for_development_only";
+    const token = jwt.sign({ id: user._id }, secret, { expiresIn: "30d" });
+
+    console.log("Test auth successful, token length:", token.length);
+
+    return res.json({
+      success: true,
+      message: "Authentication successful",
+      token,
+    });
+  } catch (error) {
+    console.error("Test auth error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Authentication failed",
+      error: error.message,
+    });
+  }
 });
 
 // Default route

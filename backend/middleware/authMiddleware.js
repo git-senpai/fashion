@@ -14,8 +14,12 @@ const protect = asyncHandler(async (req, res, next) => {
       // Get token from header
       token = req.headers.authorization.split(" ")[1];
 
+      // Use the same fallback secret as in generateToken
+      const secret =
+        process.env.JWT_SECRET || "fallback_secret_for_development_only";
+
       // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, secret);
 
       // Get user from the token
       req.user = await User.findById(decoded.id).select("-password");
